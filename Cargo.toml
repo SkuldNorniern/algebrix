@@ -3,4 +3,16 @@ name = "algebrix"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "algebrix"
+path = "src/lib.rs"
+
+[features]
+default = ["std", "simd"]
+std = []
+simd = []  # Auto-detect SIMD
+simd-x86 = []  # Force x86_64 SIMD
+simd-arm = []  # Force ARM SIMD
+scalar-math = []  # Disable SIMD, use scalar only
+
 [dependencies]
