@@ -1,4 +1,24 @@
-//! Quaternion implementation
+//! Unit quaternion for 3D rotation. Layout (x, y, z, w); multiply quats for combined rotation.
+//!
+//! Use [`from_axis_angle`](Quat::from_axis_angle) for axis+angle, [`from_mat3`](Quat::from_mat3) from a matrix,
+//! [`slerp`](Quat::slerp) for interpolation. Rotate a vector with `quat * vec` or [`mul_vec3`](Quat::mul_vec3).
+//!
+//! # Example
+//!
+//! ```rust
+//! use algebrix::{Quat, Vec3};
+//!
+//! let axis = Vec3::Z;
+//! let q = Quat::from_axis_angle(axis, std::f32::consts::FRAC_PI_2);
+//! let x = Vec3::X;
+//! let y = q * x;
+//! assert!((y - Vec3::Y).length() < 1e-5);
+//!
+//! let a = Quat::IDENTITY;
+//! let b = Quat::from_axis_angle(Vec3::Y, 0.5);
+//! let mid = a.slerp(b, 0.5);
+//! assert!(mid.w > 0.9);
+//! ```
 
 use crate::{Vec3, utils};
 
@@ -26,6 +46,16 @@ impl Quat {
         Self { x, y, z, w }
     }
 
+    /// Rotation around `axis` (will be normalized) by `angle` radians. Right-hand rule.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use algebrix::{Quat, Vec3};
+    /// let q = Quat::from_axis_angle(Vec3::Z, std::f32::consts::FRAC_PI_2);
+    /// let v = q * Vec3::X;
+    /// assert!((v - Vec3::Y).length() < 1e-5);
+    /// ```
     #[inline]
     pub fn from_axis_angle(axis: Vec3, angle: f32) -> Self {
         let half_angle = angle * 0.5;
@@ -37,6 +67,49 @@ impl Quat {
             y: normalized_axis.y * s,
             z: normalized_axis.z * s,
             w: c,
+        }
+    }
+
+    /// Quaternion from a 3x3 rotation matrix. Use when you have a Mat3 and need a Quat.
+    #[inline]
+    pub fn from_mat3(mat: &crate::Mat3) -> Self {
+        let trace = mat.trace();
+        if trace > 0.0 {
+            let s = (trace + 1.0).sqrt() * 2.0;
+            let inv_s = s.recip();
+            Self {
+                x: (mat.y_axis.z - mat.z_axis.y) * inv_s,
+                y: (mat.z_axis.x - mat.x_axis.z) * inv_s,
+                z: (mat.x_axis.y - mat.y_axis.x) * inv_s,
+                w: s * 0.25,
+            }
+        } else if mat.x_axis.x > mat.y_axis.y && mat.x_axis.x > mat.z_axis.z {
+            let s = (1.0 + mat.x_axis.x - mat.y_axis.y - mat.z_axis.z).sqrt() * 2.0;
+            let inv_s = s.recip();
+            Self {
+                x: s * 0.25,
+                y: (mat.x_axis.y + mat.y_axis.x) * inv_s,
+                z: (mat.z_axis.x + mat.x_axis.z) * inv_s,
+                w: (mat.y_axis.z - mat.z_axis.y) * inv_s,
+            }
+        } else if mat.y_axis.y > mat.z_axis.z {
+            let s = (1.0 + mat.y_axis.y - mat.x_axis.x - mat.z_axis.z).sqrt() * 2.0;
+            let inv_s = s.recip();
+            Self {
+                x: (mat.x_axis.y + mat.y_axis.x) * inv_s,
+                y: s * 0.25,
+                z: (mat.y_axis.z + mat.z_axis.y) * inv_s,
+                w: (mat.z_axis.x - mat.x_axis.z) * inv_s,
+            }
+        } else {
+            let s = (1.0 + mat.z_axis.z - mat.x_axis.x - mat.y_axis.y).sqrt() * 2.0;
+            let inv_s = s.recip();
+            Self {
+                x: (mat.z_axis.x + mat.x_axis.z) * inv_s,
+                y: (mat.y_axis.z + mat.z_axis.y) * inv_s,
+                z: s * 0.25,
+                w: (mat.x_axis.y - mat.y_axis.x) * inv_s,
+            }
         }
     }
 
@@ -135,6 +208,8 @@ impl Quat {
         }
     }
 
+    /// Spherical linear interpolation. Uses nlerp when the quaternions are very
+    /// close (avoids acos/sin) and full slerp otherwise.
     #[inline]
     pub fn slerp(self, other: Self, t: f32) -> Self {
         let dot = self.x * other.x + self.y * other.y + self.z * other.z + self.w * other.w;
@@ -144,11 +219,8 @@ impl Quat {
             return self;
         }
 
-        // Fast path: when quaternions are very close, use normalized lerp instead of expensive trig
-        // This avoids acos/sin calls in animation-heavy code paths
         const DOT_THRESHOLD: f32 = 0.9995;
         if abs_dot > DOT_THRESHOLD {
-            // Normalized lerp (nlerp) - much faster than slerp for close quaternions
             let sign = if dot < 0.0 { -1.0 } else { 1.0 };
             let result = Self {
                 x: self.x + (other.x * sign - self.x) * t,
@@ -159,7 +231,6 @@ impl Quat {
             return result.normalize();
         }
 
-        // Full slerp for quaternions that are further apart
         let theta = abs_dot.acos();
         let sin_theta = theta.sin();
         let inv_sin_theta = sin_theta.recip();
@@ -192,12 +263,268 @@ impl Quat {
         let ty = 2.0 * (qz * vx - qx * vz);
         let tz = 2.0 * (qx * vy - qy * vx);
 
-        // Use mul_add for the final computation (FMA optimization)
         Vec3::new(
             vx + qw.mul_add(tx, qy.mul_add(tz, -qz * ty)),
             vy + qw.mul_add(ty, qz.mul_add(tx, -qx * tz)),
             vz + qw.mul_add(tz, qx.mul_add(ty, -qy * tx)),
         )
+    }
+
+    /// Rotate a vector by this quaternion (alias for mul_vec3)
+    #[inline]
+    pub fn rotate_vec3(self, v: Vec3) -> Vec3 {
+        self.mul_vec3(v)
+    }
+
+    /// Extract axis and angle from this quaternion
+    /// Returns (axis, angle) where axis is a unit vector and angle is in radians
+    #[inline]
+    pub fn to_axis_angle(self) -> (Vec3, f32) {
+        let normalized = self.normalize();
+        let angle = 2.0 * normalized.w.acos();
+        let sin_half_angle = (1.0 - normalized.w * normalized.w).sqrt();
+
+        if sin_half_angle < 0.0001 {
+            (Vec3::X, angle)
+        } else {
+            let axis = Vec3::new(
+                normalized.x / sin_half_angle,
+                normalized.y / sin_half_angle,
+                normalized.z / sin_half_angle,
+            );
+            (axis, angle)
+        }
+    }
+
+    /// Create from Euler angles with specified rotation order
+    #[inline]
+    pub fn from_euler(order: crate::EulerRot, x: f32, y: f32, z: f32) -> Self {
+        match order {
+            crate::EulerRot::XYZ => Self::from_euler_xyz(x, y, z),
+            crate::EulerRot::XZY => {
+                let qx = Self::from_axis_angle(crate::Vec3::X, x);
+                let qz = Self::from_axis_angle(crate::Vec3::Z, z);
+                let qy = Self::from_axis_angle(crate::Vec3::Y, y);
+                qx * qz * qy
+            }
+            crate::EulerRot::YXZ => {
+                let qy = Self::from_axis_angle(crate::Vec3::Y, y);
+                let qx = Self::from_axis_angle(crate::Vec3::X, x);
+                let qz = Self::from_axis_angle(crate::Vec3::Z, z);
+                qy * qx * qz
+            }
+            crate::EulerRot::YZX => {
+                let qy = Self::from_axis_angle(crate::Vec3::Y, y);
+                let qz = Self::from_axis_angle(crate::Vec3::Z, z);
+                let qx = Self::from_axis_angle(crate::Vec3::X, x);
+                qy * qz * qx
+            }
+            crate::EulerRot::ZXY => {
+                let qz = Self::from_axis_angle(crate::Vec3::Z, z);
+                let qx = Self::from_axis_angle(crate::Vec3::X, x);
+                let qy = Self::from_axis_angle(crate::Vec3::Y, y);
+                qz * qx * qy
+            }
+            crate::EulerRot::ZYX => {
+                let qz = Self::from_axis_angle(crate::Vec3::Z, z);
+                let qy = Self::from_axis_angle(crate::Vec3::Y, y);
+                let qx = Self::from_axis_angle(crate::Vec3::X, x);
+                qz * qy * qx
+            }
+        }
+    }
+
+    /// Extract Euler angles (XYZ order) from this quaternion
+    /// Returns (pitch, yaw, roll) in radians
+    #[inline]
+    pub fn to_euler_xyz(self) -> (f32, f32, f32) {
+        let sinr_cosp = 2.0 * (self.w * self.x + self.y * self.z);
+        let cosr_cosp = 1.0 - 2.0 * (self.x * self.x + self.y * self.y);
+        let roll = sinr_cosp.atan2(cosr_cosp);
+
+        let sinp = 2.0 * (self.w * self.y - self.z * self.x);
+        let pitch = if sinp.abs() >= 1.0 {
+            std::f32::consts::FRAC_PI_2.copysign(sinp)
+        } else {
+            sinp.asin()
+        };
+
+        let siny_cosp = 2.0 * (self.w * self.z + self.x * self.y);
+        let cosy_cosp = 1.0 - 2.0 * (self.y * self.y + self.z * self.z);
+        let yaw = siny_cosp.atan2(cosy_cosp);
+
+        (roll, pitch, yaw)
+    }
+
+    /// Dot product of two quaternions
+    #[inline(always)]
+    pub fn dot(self, other: Self) -> f32 {
+        self.x * other.x + self.y * other.y + self.z * other.z + self.w * other.w
+    }
+
+    /// Normalized linear interpolation (faster than slerp for close quaternions)
+    #[inline]
+    pub fn nlerp(self, other: Self, t: f32) -> Self {
+        let dot = self.dot(other);
+        let sign = if dot < 0.0 { -1.0 } else { 1.0 };
+        Self {
+            x: self.x + (other.x * sign - self.x) * t,
+            y: self.y + (other.y * sign - self.y) * t,
+            z: self.z + (other.z * sign - self.z) * t,
+            w: self.w + (other.w * sign - self.w) * t,
+        }.normalize()
+    }
+
+    /// Create from array [x, y, z, w]
+    #[inline(always)]
+    pub fn from_array(a: [f32; 4]) -> Self {
+        Self { x: a[0], y: a[1], z: a[2], w: a[3] }
+    }
+
+    /// Convert to array [x, y, z, w]
+    #[inline(always)]
+    pub fn to_array(self) -> [f32; 4] {
+        [self.x, self.y, self.z, self.w]
+    }
+
+    /// Check if the quaternion is approximately normalized
+    #[inline(always)]
+    pub fn is_normalized(self) -> bool {
+        (self.length_squared() - 1.0).abs() < 0.0001
+    }
+
+    /// Extract Euler angles with specified rotation order
+    /// Returns (x, y, z) angles in radians
+    #[inline]
+    pub fn to_euler(self, order: crate::EulerRot) -> (f32, f32, f32) {
+        match order {
+            crate::EulerRot::XYZ => self.to_euler_xyz(),
+            crate::EulerRot::XZY => {
+                let (x, z, y) = self.to_euler_xzy();
+                (x, y, z)
+            }
+            crate::EulerRot::YXZ => {
+                let (y, x, z) = self.to_euler_yxz();
+                (x, y, z)
+            }
+            crate::EulerRot::YZX => {
+                let (y, z, x) = self.to_euler_yzx();
+                (x, y, z)
+            }
+            crate::EulerRot::ZXY => {
+                let (z, x, y) = self.to_euler_zxy();
+                (x, y, z)
+            }
+            crate::EulerRot::ZYX => {
+                let (z, y, x) = self.to_euler_zyx();
+                (x, y, z)
+            }
+        }
+    }
+
+    /// Extract Euler angles in XZY order
+    #[inline]
+    fn to_euler_xzy(self) -> (f32, f32, f32) {
+        let sinr_cosp = 2.0 * (self.w * self.x - self.y * self.z);
+        let cosr_cosp = 1.0 - 2.0 * (self.x * self.x + self.z * self.z);
+        let roll = sinr_cosp.atan2(cosr_cosp);
+
+        let sinp = 2.0 * (self.w * self.z - self.x * self.y);
+        let pitch = if sinp.abs() >= 1.0 {
+            std::f32::consts::FRAC_PI_2.copysign(sinp)
+        } else {
+            sinp.asin()
+        };
+
+        let siny_cosp = 2.0 * (self.w * self.y - self.z * self.x);
+        let cosy_cosp = 1.0 - 2.0 * (self.y * self.y + self.z * self.z);
+        let yaw = siny_cosp.atan2(cosy_cosp);
+
+        (roll, pitch, yaw)
+    }
+
+    /// Extract Euler angles in YXZ order
+    #[inline]
+    fn to_euler_yxz(self) -> (f32, f32, f32) {
+        let sinr_cosp = 2.0 * (self.w * self.y - self.z * self.x);
+        let cosr_cosp = 1.0 - 2.0 * (self.x * self.x + self.y * self.y);
+        let yaw = sinr_cosp.atan2(cosr_cosp);
+
+        let sinp = 2.0 * (self.w * self.x - self.y * self.z);
+        let pitch = if sinp.abs() >= 1.0 {
+            std::f32::consts::FRAC_PI_2.copysign(sinp)
+        } else {
+            sinp.asin()
+        };
+
+        let siny_cosp = 2.0 * (self.w * self.z - self.x * self.y);
+        let cosy_cosp = 1.0 - 2.0 * (self.y * self.y + self.z * self.z);
+        let roll = siny_cosp.atan2(cosy_cosp);
+
+        (yaw, pitch, roll)
+    }
+
+    /// Extract Euler angles in YZX order
+    #[inline]
+    fn to_euler_yzx(self) -> (f32, f32, f32) {
+        let sinr_cosp = 2.0 * (self.w * self.y + self.x * self.z);
+        let cosr_cosp = 1.0 - 2.0 * (self.y * self.y + self.z * self.z);
+        let yaw = sinr_cosp.atan2(cosr_cosp);
+
+        let sinp = 2.0 * (self.w * self.z - self.x * self.y);
+        let pitch = if sinp.abs() >= 1.0 {
+            std::f32::consts::FRAC_PI_2.copysign(sinp)
+        } else {
+            sinp.asin()
+        };
+
+        let siny_cosp = 2.0 * (self.w * self.x - self.y * self.z);
+        let cosy_cosp = 1.0 - 2.0 * (self.x * self.x + self.z * self.z);
+        let roll = siny_cosp.atan2(cosy_cosp);
+
+        (yaw, pitch, roll)
+    }
+
+    /// Extract Euler angles in ZXY order
+    #[inline]
+    fn to_euler_zxy(self) -> (f32, f32, f32) {
+        let sinr_cosp = 2.0 * (self.w * self.z + self.x * self.y);
+        let cosr_cosp = 1.0 - 2.0 * (self.x * self.x + self.z * self.z);
+        let roll = sinr_cosp.atan2(cosr_cosp);
+
+        let sinp = 2.0 * (self.w * self.x - self.y * self.z);
+        let pitch = if sinp.abs() >= 1.0 {
+            std::f32::consts::FRAC_PI_2.copysign(sinp)
+        } else {
+            sinp.asin()
+        };
+
+        let siny_cosp = 2.0 * (self.w * self.y - self.z * self.x);
+        let cosy_cosp = 1.0 - 2.0 * (self.y * self.y + self.x * self.x);
+        let yaw = siny_cosp.atan2(cosy_cosp);
+
+        (roll, pitch, yaw)
+    }
+
+    /// Extract Euler angles in ZYX order
+    #[inline]
+    fn to_euler_zyx(self) -> (f32, f32, f32) {
+        let sinr_cosp = 2.0 * (self.w * self.z - self.x * self.y);
+        let cosr_cosp = 1.0 - 2.0 * (self.y * self.y + self.z * self.z);
+        let roll = sinr_cosp.atan2(cosr_cosp);
+
+        let sinp = 2.0 * (self.w * self.y + self.x * self.z);
+        let pitch = if sinp.abs() >= 1.0 {
+            std::f32::consts::FRAC_PI_2.copysign(sinp)
+        } else {
+            sinp.asin()
+        };
+
+        let siny_cosp = 2.0 * (self.w * self.x - self.y * self.z);
+        let cosy_cosp = 1.0 - 2.0 * (self.x * self.x + self.y * self.y);
+        let yaw = siny_cosp.atan2(cosy_cosp);
+
+        (roll, pitch, yaw)
     }
 }
 
@@ -205,7 +532,6 @@ impl std::ops::Mul for Quat {
     type Output = Self;
     #[inline]
     fn mul(self, other: Self) -> Self {
-        // Use mul_add where possible for FMA optimization
         Self {
             x: self.w.mul_add(
                 other.x,
@@ -237,6 +563,58 @@ impl std::ops::Mul<Vec3> for Quat {
     #[inline]
     fn mul(self, other: Vec3) -> Vec3 {
         self.mul_vec3(other)
+    }
+}
+
+impl std::ops::Mul<f32> for Quat {
+    type Output = Quat;
+    #[inline]
+    fn mul(self, scalar: f32) -> Quat {
+        Quat {
+            x: self.x * scalar,
+            y: self.y * scalar,
+            z: self.z * scalar,
+            w: self.w * scalar,
+        }
+    }
+}
+
+impl std::ops::Add for Quat {
+    type Output = Quat;
+    #[inline]
+    fn add(self, other: Quat) -> Quat {
+        Quat {
+            x: self.x + other.x,
+            y: self.y + other.y,
+            z: self.z + other.z,
+            w: self.w + other.w,
+        }
+    }
+}
+
+impl std::ops::Sub for Quat {
+    type Output = Quat;
+    #[inline]
+    fn sub(self, other: Quat) -> Quat {
+        Quat {
+            x: self.x - other.x,
+            y: self.y - other.y,
+            z: self.z - other.z,
+            w: self.w - other.w,
+        }
+    }
+}
+
+impl std::ops::Neg for Quat {
+    type Output = Quat;
+    #[inline]
+    fn neg(self) -> Quat {
+        Quat {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+            w: -self.w,
+        }
     }
 }
 

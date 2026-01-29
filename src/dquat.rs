@@ -1,7 +1,21 @@
-//! Quaternion implementation (f64)
+//! Unit quaternion in double precision (f64). Same API as Quat; use [`from_quat`](DQuat::from_quat) / [`as_quat`](DQuat::as_quat) to convert.
+//!
+//! # Example
+//!
+//! ```rust
+//! use algebrix::{DQuat, DVec3};
+//! let axis = DVec3::Z;
+//! let q = DQuat::from_axis_angle(axis, std::f64::consts::FRAC_PI_2);
+//! let v = q * DVec3::X;
+//! assert!((v.y - 1.0).abs() < 1e-10);
+//! ```
+//!
 
 use crate::{DVec3, Quat};
 
+/// Unit quaternion in double precision (f64).
+///
+/// Same API as [`Quat`]; use [`from_quat`](DQuat::from_quat) and [`as_quat`](DQuat::as_quat) to convert.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DQuat {
     pub x: f64,
@@ -11,6 +25,7 @@ pub struct DQuat {
 }
 
 impl DQuat {
+    /// Identity quaternion (no rotation).
     pub const IDENTITY: DQuat = DQuat {
         x: 0.0,
         y: 0.0,
@@ -18,10 +33,12 @@ impl DQuat {
         w: 1.0,
     };
 
+    /// Build from components (x, y, z, w). Usually you want [`from_axis_angle`](DQuat::from_axis_angle) for rotations.
     pub const fn new(x: f64, y: f64, z: f64, w: f64) -> Self {
         Self { x, y, z, w }
     }
 
+    /// Rotation around `axis` (will be normalized) by `angle` radians.
     #[inline]
     pub fn from_axis_angle(axis: DVec3, angle: f64) -> Self {
         let (s, c) = (angle * 0.5).sin_cos();
@@ -34,6 +51,7 @@ impl DQuat {
         }
     }
 
+    /// Normalize to unit length. Returns identity if length is zero.
     #[inline]
     pub fn normalize(self) -> Self {
         let len_sq = self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w;
@@ -50,6 +68,7 @@ impl DQuat {
         }
     }
 
+    /// Conjugate (negate x, y, z). For unit quaternions this is the inverse rotation.
     #[inline]
     pub fn conjugate(self) -> Self {
         Self {
@@ -60,21 +79,25 @@ impl DQuat {
         }
     }
 
+    /// Inverse rotation (normalize then conjugate).
     #[inline]
     pub fn inverse(self) -> Self {
         self.normalize().conjugate()
     }
 
+    /// Convert to single-precision [`Quat`].
     #[inline]
     pub fn as_quat(self) -> Quat {
         Quat::new(self.x as f32, self.y as f32, self.z as f32, self.w as f32)
     }
 
+    /// Build from a single-precision [`Quat`].
     #[inline]
     pub fn from_quat(q: Quat) -> Self {
         Self::new(q.x as f64, q.y as f64, q.z as f64, q.w as f64)
     }
 
+    /// Rotate a 3D vector by this quaternion.
     #[inline]
     pub fn mul_vec3(self, v: DVec3) -> DVec3 {
         let q = DVec3::new(self.x, self.y, self.z);

@@ -1,4 +1,22 @@
-//! 2D vector implementation
+//! 2D float vector: positions, directions, UVs.
+//!
+//! Supports the usual ops (add, sub, mul by scalar, dot, length, normalize).
+//! Use [`normalize_fast`](Vec2::normalize_fast) when you care more about speed than precision.
+//!
+//! # Example
+//!
+//! ```rust
+//! use algebrix::Vec2;
+//!
+//! let a = Vec2::new(3.0, 4.0);
+//! assert!((a.length() - 5.0).abs() < 1e-5);
+//! let u = a.normalize();
+//! assert!((u.dot(u) - 1.0).abs() < 1e-5);
+//!
+//! let right = Vec2::from_angle(0.0);
+//! let up = Vec2::from_angle(std::f32::consts::FRAC_PI_2);
+//! assert!(right.dot(up).abs() < 1e-5);
+//! ```
 
 use crate::utils;
 
@@ -47,8 +65,16 @@ impl Vec2 {
         }
     }
 
-    /// Fast normalize using reciprocal square root approximation
-    /// Less accurate than `normalize()` but faster. Suitable for game code.
+    /// Normalize using rsqrt. Slightly less accurate than [`normalize`](Self::normalize) but faster; use for directions where exact length 1 is not required.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use algebrix::Vec2;
+    /// let v = Vec2::new(3.0, 4.0);
+    /// let u = v.normalize_fast();
+    /// assert!(u.length() > 0.99 && u.length() < 1.01);
+    /// ```
     #[inline]
     pub fn normalize_fast(self) -> Self {
         let len_sq = self.length_squared();
@@ -132,6 +158,237 @@ impl Vec2 {
             x: utils::lerp(self.x, other.x, t),
             y: utils::lerp(self.y, other.y, t),
         }
+    }
+
+    /// All components set to the same value. Same as `Vec2::new(v, v)`.
+    #[inline(always)]
+    pub fn splat(value: f32) -> Self {
+        Self { x: value, y: value }
+    }
+
+    /// Perpendicular vector: rotate 90 degrees counter-clockwise in the XY plane. For (x, y) returns (-y, x).
+    #[inline(always)]
+    pub fn perp(self) -> Self {
+        Self { x: -self.y, y: self.x }
+    }
+
+    /// Perpendicular dot product (2D cross product)
+    #[inline(always)]
+    pub fn perp_dot(self, other: Self) -> f32 {
+        self.x * other.y - self.y * other.x
+    }
+
+    /// Angle between two vectors in radians
+    #[inline]
+    pub fn angle_between(self, other: Self) -> f32 {
+        let dot = self.dot(other);
+        let det = self.perp_dot(other);
+        det.atan2(dot)
+    }
+
+    /// Unit vector at the given angle (radians). X = cos(angle), Y = sin(angle); angle 0 is +X.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use algebrix::Vec2;
+    /// let right = Vec2::from_angle(0.0);
+    /// assert!((right.x - 1.0).abs() < 1e-5 && right.y.abs() < 1e-5);
+    /// ```
+    #[inline]
+    pub fn from_angle(angle: f32) -> Self {
+        Self {
+            x: angle.cos(),
+            y: angle.sin(),
+        }
+    }
+
+    /// Convert to angle in radians
+    #[inline]
+    pub fn to_angle(self) -> f32 {
+        self.y.atan2(self.x)
+    }
+
+    /// Component-wise reciprocal
+    #[inline(always)]
+    pub fn recip(self) -> Self {
+        Self {
+            x: self.x.recip(),
+            y: self.y.recip(),
+        }
+    }
+
+    /// Component-wise absolute value
+    #[inline(always)]
+    pub fn abs(self) -> Self {
+        Self {
+            x: self.x.abs(),
+            y: self.y.abs(),
+        }
+    }
+
+    /// Component-wise signum
+    #[inline(always)]
+    pub fn signum(self) -> Self {
+        Self {
+            x: self.x.signum(),
+            y: self.y.signum(),
+        }
+    }
+
+    /// Minimum element
+    #[inline(always)]
+    pub fn min_element(self) -> f32 {
+        self.x.min(self.y)
+    }
+
+    /// Maximum element
+    #[inline(always)]
+    pub fn max_element(self) -> f32 {
+        self.x.max(self.y)
+    }
+
+    /// Component-wise clamp
+    #[inline(always)]
+    pub fn clamp(self, min: Self, max: Self) -> Self {
+        Self {
+            x: self.x.clamp(min.x, max.x),
+            y: self.y.clamp(min.y, max.y),
+        }
+    }
+
+    /// Component-wise minimum
+    #[inline(always)]
+    pub fn min(self, other: Self) -> Self {
+        Self {
+            x: self.x.min(other.x),
+            y: self.y.min(other.y),
+        }
+    }
+
+    /// Component-wise maximum
+    #[inline(always)]
+    pub fn max(self, other: Self) -> Self {
+        Self {
+            x: self.x.max(other.x),
+            y: self.y.max(other.y),
+        }
+    }
+
+    /// Extend to Vec3
+    #[inline(always)]
+    pub fn extend(self, z: f32) -> crate::Vec3 {
+        crate::Vec3::new(self.x, self.y, z)
+    }
+
+    /// Project onto another vector
+    #[inline]
+    pub fn project(self, onto: Self) -> Self {
+        let dot = self.dot(onto);
+        let len_sq = onto.length_squared();
+        if len_sq > 0.0 {
+            onto * (dot / len_sq)
+        } else {
+            Self::ZERO
+        }
+    }
+
+    /// Reject from another vector (component perpendicular to onto)
+    #[inline]
+    pub fn reject(self, from: Self) -> Self {
+        self - self.project(from)
+    }
+
+    /// Reflect across a normal
+    #[inline]
+    pub fn reflect(self, normal: Self) -> Self {
+        self - normal * (2.0 * self.dot(normal))
+    }
+
+    /// Check if all components are finite
+    #[inline(always)]
+    pub fn is_finite(self) -> bool {
+        self.x.is_finite() && self.y.is_finite()
+    }
+
+    /// Check if any component is NaN
+    #[inline(always)]
+    pub fn is_nan(self) -> bool {
+        self.x.is_nan() || self.y.is_nan()
+    }
+
+    /// Approximate equality with epsilon
+    #[inline]
+    pub fn abs_diff_eq(self, other: Self, epsilon: f32) -> bool {
+        (self.x - other.x).abs() <= epsilon && (self.y - other.y).abs() <= epsilon
+    }
+
+    /// Create from array
+    #[inline(always)]
+    pub fn from_array(a: [f32; 2]) -> Self {
+        Self { x: a[0], y: a[1] }
+    }
+
+    /// Convert to array
+    #[inline(always)]
+    pub fn to_array(self) -> [f32; 2] {
+        [self.x, self.y]
+    }
+
+    /// Distance between two points
+    #[inline]
+    pub fn distance(self, other: Self) -> f32 {
+        (self - other).length()
+    }
+
+    /// Squared distance between two points
+    #[inline]
+    pub fn distance_squared(self, other: Self) -> f32 {
+        (self - other).length_squared()
+    }
+
+    /// Create from slice, returns None if slice is too short
+    #[inline]
+    pub fn from_slice(slice: &[f32]) -> Option<Self> {
+        if slice.len() >= 2 {
+            Some(Self::new(slice[0], slice[1]))
+        } else {
+            None
+        }
+    }
+
+    /// Write to slice, panics if slice is too short
+    #[inline]
+    pub fn write_to_slice(self, slice: &mut [f32]) {
+        assert!(slice.len() >= 2, "slice must have at least 2 elements");
+        slice[0] = self.x;
+        slice[1] = self.y;
+    }
+
+    /// Get reference to underlying array
+    #[inline(always)]
+    pub fn as_array(&self) -> &[f32; 2] {
+        self.as_ref()
+    }
+
+    /// Get mutable reference to underlying array
+    #[inline(always)]
+    pub fn as_array_mut(&mut self) -> &mut [f32; 2] {
+        self.as_mut()
+    }
+}
+
+impl std::convert::AsRef<[f32; 2]> for Vec2 {
+    #[inline(always)]
+    fn as_ref(&self) -> &[f32; 2] {
+        unsafe { &*(self as *const Self as *const [f32; 2]) }
+    }
+}
+
+impl std::convert::AsMut<[f32; 2]> for Vec2 {
+    #[inline(always)]
+    fn as_mut(&mut self) -> &mut [f32; 2] {
+        unsafe { &mut *(self as *mut Self as *mut [f32; 2]) }
     }
 }
 

@@ -1,4 +1,22 @@
-//! 3x3 matrix implementation
+//! 3x3 column-major matrix: 3D rotation, scale, or combined linear transform.
+//!
+//! Multiply a Vec3 on the right: `matrix * point`. Use [`from_quat`](Mat3::from_quat),
+//! [`from_axis_angle`](Mat3::from_axis_angle), or [`from_rotation_x/y/z`](Mat3::from_rotation_z) for rotation.
+//!
+//! # Example
+//!
+//! ```rust
+//! use algebrix::{Mat3, Vec3};
+//!
+//! let rot = Mat3::from_rotation_z(std::f32::consts::FRAC_PI_2);
+//! let x = Vec3::X;
+//! let y = rot * x;
+//! assert!((y - Vec3::Y).length() < 1e-5);
+//!
+//! let scale = Mat3::from_nonuniform_scale(Vec3::new(2.0, 3.0, 1.0));
+//! let p = Vec3::new(1.0, 1.0, 0.0);
+//! assert_eq!(scale * p, Vec3::new(2.0, 3.0, 0.0));
+//! ```
 
 use crate::Vec3;
 
@@ -10,6 +28,12 @@ pub struct Mat3 {
 }
 
 impl Mat3 {
+    pub const ZERO: Mat3 = Mat3 {
+        x_axis: Vec3::ZERO,
+        y_axis: Vec3::ZERO,
+        z_axis: Vec3::ZERO,
+    };
+
     pub const IDENTITY: Mat3 = Mat3 {
         x_axis: Vec3::X,
         y_axis: Vec3::Y,
@@ -40,6 +64,23 @@ impl Mat3 {
         }
     }
 
+    pub const fn from_diagonal_value(value: f32) -> Self {
+        Self {
+            x_axis: Vec3::new(value, 0.0, 0.0),
+            y_axis: Vec3::new(0.0, value, 0.0),
+            z_axis: Vec3::new(0.0, 0.0, value),
+        }
+    }
+
+    pub fn col(&self, index: usize) -> Vec3 {
+        match index {
+            0 => self.x_axis,
+            1 => self.y_axis,
+            2 => self.z_axis,
+            _ => panic!("Column index out of bounds: {}", index),
+        }
+    }
+
     #[inline]
     pub fn transpose(self) -> Self {
         Self {
@@ -51,7 +92,6 @@ impl Mat3 {
 
     #[inline]
     pub fn mul_vec3(self, other: Vec3) -> Vec3 {
-        // Use mul_add for FMA optimization and better numerical stability
         Vec3::new(
             self.x_axis.x.mul_add(
                 other.x,
@@ -66,6 +106,171 @@ impl Mat3 {
                 self.y_axis.z.mul_add(other.y, self.z_axis.z * other.z),
             ),
         )
+    }
+
+    /// Compute the determinant of the matrix
+    #[inline]
+    pub fn determinant(&self) -> f32 {
+        self.x_axis.x * (self.y_axis.y * self.z_axis.z - self.y_axis.z * self.z_axis.y)
+            - self.y_axis.x * (self.x_axis.y * self.z_axis.z - self.x_axis.z * self.z_axis.y)
+            + self.z_axis.x * (self.x_axis.y * self.y_axis.z - self.x_axis.z * self.y_axis.y)
+    }
+
+    /// Compute the trace (sum of diagonal elements)
+    #[inline(always)]
+    pub fn trace(&self) -> f32 {
+        self.x_axis.x + self.y_axis.y + self.z_axis.z
+    }
+
+    /// Compute the inverse of the matrix, returns None if not invertible
+    #[inline]
+    pub fn inverse(&self) -> Option<Self> {
+        let det = self.determinant();
+        if det.abs() < f32::EPSILON {
+            return None;
+        }
+        let inv_det = det.recip();
+
+        let c00 = self.y_axis.y * self.z_axis.z - self.y_axis.z * self.z_axis.y;
+        let c01 = self.x_axis.z * self.z_axis.y - self.x_axis.y * self.z_axis.z;
+        let c02 = self.x_axis.y * self.y_axis.z - self.x_axis.z * self.y_axis.y;
+
+        let c10 = self.y_axis.z * self.z_axis.x - self.y_axis.x * self.z_axis.z;
+        let c11 = self.x_axis.x * self.z_axis.z - self.x_axis.z * self.z_axis.x;
+        let c12 = self.x_axis.z * self.y_axis.x - self.x_axis.x * self.y_axis.z;
+
+        let c20 = self.y_axis.x * self.z_axis.y - self.y_axis.y * self.z_axis.x;
+        let c21 = self.x_axis.y * self.z_axis.x - self.x_axis.x * self.z_axis.y;
+        let c22 = self.x_axis.x * self.y_axis.y - self.x_axis.y * self.y_axis.x;
+
+        Some(Self {
+            x_axis: Vec3::new(c00 * inv_det, c01 * inv_det, c02 * inv_det),
+            y_axis: Vec3::new(c10 * inv_det, c11 * inv_det, c12 * inv_det),
+            z_axis: Vec3::new(c20 * inv_det, c21 * inv_det, c22 * inv_det),
+        })
+    }
+
+    /// Create a uniform scale matrix
+    #[inline]
+    pub fn from_scale(scale: f32) -> Self {
+        Self::from_diagonal(Vec3::splat(scale))
+    }
+
+    /// Create a non-uniform scale matrix
+    #[inline]
+    pub fn from_nonuniform_scale(scale: Vec3) -> Self {
+        Self::from_diagonal(scale)
+    }
+
+    /// Create a rotation matrix around the X axis
+    #[inline]
+    pub fn from_rotation_x(angle: f32) -> Self {
+        let (sin, cos) = angle.sin_cos();
+        Self {
+            x_axis: Vec3::X,
+            y_axis: Vec3::new(0.0, cos, sin),
+            z_axis: Vec3::new(0.0, -sin, cos),
+        }
+    }
+
+    /// Create a rotation matrix around the Y axis
+    #[inline]
+    pub fn from_rotation_y(angle: f32) -> Self {
+        let (sin, cos) = angle.sin_cos();
+        Self {
+            x_axis: Vec3::new(cos, 0.0, -sin),
+            y_axis: Vec3::Y,
+            z_axis: Vec3::new(sin, 0.0, cos),
+        }
+    }
+
+    /// Create a rotation matrix around the Z axis
+    #[inline]
+    pub fn from_rotation_z(angle: f32) -> Self {
+        let (sin, cos) = angle.sin_cos();
+        Self {
+            x_axis: Vec3::new(cos, sin, 0.0),
+            y_axis: Vec3::new(-sin, cos, 0.0),
+            z_axis: Vec3::Z,
+        }
+    }
+
+    /// Create a rotation matrix from axis and angle
+    #[inline]
+    pub fn from_axis_angle(axis: Vec3, angle: f32) -> Self {
+        let axis = axis.normalize();
+        let (sin, cos) = angle.sin_cos();
+        let one_minus_cos = 1.0 - cos;
+
+        let x = axis.x;
+        let y = axis.y;
+        let z = axis.z;
+
+        Self {
+            x_axis: Vec3::new(
+                cos + x * x * one_minus_cos,
+                x * y * one_minus_cos + z * sin,
+                x * z * one_minus_cos - y * sin,
+            ),
+            y_axis: Vec3::new(
+                y * x * one_minus_cos - z * sin,
+                cos + y * y * one_minus_cos,
+                y * z * one_minus_cos + x * sin,
+            ),
+            z_axis: Vec3::new(
+                z * x * one_minus_cos + y * sin,
+                z * y * one_minus_cos - x * sin,
+                cos + z * z * one_minus_cos,
+            ),
+        }
+    }
+
+    /// Create a rotation matrix from a quaternion
+    #[inline]
+    pub fn from_quat(quat: crate::Quat) -> Self {
+        let x = quat.x;
+        let y = quat.y;
+        let z = quat.z;
+        let w = quat.w;
+
+        let x2 = x + x;
+        let y2 = y + y;
+        let z2 = z + z;
+        let xx = x * x2;
+        let xy = x * y2;
+        let xz = x * z2;
+        let yy = y * y2;
+        let yz = y * z2;
+        let zz = z * z2;
+        let wx = w * x2;
+        let wy = w * y2;
+        let wz = w * z2;
+
+        Self {
+            x_axis: Vec3::new(1.0 - yy - zz, xy + wz, xz - wy),
+            y_axis: Vec3::new(xy - wz, 1.0 - xx - zz, yz + wx),
+            z_axis: Vec3::new(xz + wy, yz - wx, 1.0 - xx - yy),
+        }
+    }
+
+    /// Create from array (column-major order)
+    #[inline]
+    pub fn from_cols_array(m: &[f32; 9]) -> Self {
+        Self {
+            x_axis: Vec3::new(m[0], m[1], m[2]),
+            y_axis: Vec3::new(m[3], m[4], m[5]),
+            z_axis: Vec3::new(m[6], m[7], m[8]),
+        }
+    }
+
+    /// Convert to array (column-major order)
+    #[inline]
+    pub fn to_cols_array(self) -> [f32; 9] {
+        [
+            self.x_axis.x, self.x_axis.y, self.x_axis.z,
+            self.y_axis.x, self.y_axis.y, self.y_axis.z,
+            self.z_axis.x, self.z_axis.y, self.z_axis.z,
+        ]
     }
 }
 
@@ -86,6 +291,76 @@ impl std::ops::Mul<Vec3> for Mat3 {
     #[inline]
     fn mul(self, other: Vec3) -> Vec3 {
         self.mul_vec3(other)
+    }
+}
+
+impl std::ops::Mul<f32> for Mat3 {
+    type Output = Self;
+    #[inline]
+    fn mul(self, scalar: f32) -> Self {
+        Self {
+            x_axis: self.x_axis * scalar,
+            y_axis: self.y_axis * scalar,
+            z_axis: self.z_axis * scalar,
+        }
+    }
+}
+
+impl std::ops::Mul<Mat3> for f32 {
+    type Output = Mat3;
+    #[inline]
+    fn mul(self, matrix: Mat3) -> Mat3 {
+        Mat3 {
+            x_axis: matrix.x_axis * self,
+            y_axis: matrix.y_axis * self,
+            z_axis: matrix.z_axis * self,
+        }
+    }
+}
+
+impl std::ops::Div<f32> for Mat3 {
+    type Output = Self;
+    #[inline]
+    fn div(self, scalar: f32) -> Self {
+        let inv = 1.0 / scalar;
+        Self {
+            x_axis: self.x_axis * inv,
+            y_axis: self.y_axis * inv,
+            z_axis: self.z_axis * inv,
+        }
+    }
+}
+
+impl std::ops::Add for Mat3 {
+    type Output = Self;
+    #[inline]
+    fn add(self, other: Self) -> Self {
+        Self {
+            x_axis: self.x_axis + other.x_axis,
+            y_axis: self.y_axis + other.y_axis,
+            z_axis: self.z_axis + other.z_axis,
+        }
+    }
+}
+
+impl std::ops::Sub for Mat3 {
+    type Output = Self;
+    #[inline]
+    fn sub(self, other: Self) -> Self {
+        Self {
+            x_axis: self.x_axis - other.x_axis,
+            y_axis: self.y_axis - other.y_axis,
+            z_axis: self.z_axis - other.z_axis,
+        }
+    }
+}
+
+impl std::ops::AddAssign for Mat3 {
+    #[inline]
+    fn add_assign(&mut self, other: Self) {
+        self.x_axis += other.x_axis;
+        self.y_axis += other.y_axis;
+        self.z_axis += other.z_axis;
     }
 }
 

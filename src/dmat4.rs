@@ -1,8 +1,24 @@
-//! 4x4 matrix implementation (f64)
+//! 4x4 column-major matrix in double precision (f64). Same API as Mat4; use [`as_mat4`](DMat4::as_mat4) to convert to float.
+//!
+//! # Example
+//!
+//! ```rust
+//! use algebrix::{DMat4, DVec3};
+//! let t = DMat4::from_translation(DVec3::new(1.0, 2.0, 3.0));
+//! let p = DVec3::ZERO;
+//! let q = t.transform_point3(p);
+//! assert!((q.x - 1.0).abs() < 1e-10);
+//! assert!((q.y - 2.0).abs() < 1e-10);
+//! ```
+//!
 
 use crate::Vec4;
 use crate::{DQuat, DVec3, Mat4};
 
+/// 4x4 column-major matrix in double precision (f64).
+///
+/// Same layout and operations as [`Mat4`]; use [`as_mat4`](DMat4::as_mat4) to convert to single precision
+/// or [`from_mat4`](DMat4::from_mat4) to convert from it.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DMat4 {
@@ -13,6 +29,7 @@ pub struct DMat4 {
 }
 
 impl DMat4 {
+    /// Identity matrix (no translation, no rotation).
     pub const IDENTITY: DMat4 = DMat4 {
         x_axis: [1.0, 0.0, 0.0, 0.0],
         y_axis: [0.0, 1.0, 0.0, 0.0],
@@ -20,6 +37,7 @@ impl DMat4 {
         w_axis: [0.0, 0.0, 0.0, 1.0],
     };
 
+    /// Build from four column vectors (column-major order).
     pub const fn from_cols(x: [f64; 4], y: [f64; 4], z: [f64; 4], w: [f64; 4]) -> Self {
         Self {
             x_axis: x,
@@ -29,6 +47,7 @@ impl DMat4 {
         }
     }
 
+    /// Translation matrix: identity with `translation` in the fourth column.
     #[inline]
     pub fn from_translation(translation: DVec3) -> Self {
         Self {
@@ -39,6 +58,7 @@ impl DMat4 {
         }
     }
 
+    /// Rotation matrix from a unit quaternion.
     #[inline]
     pub fn from_quat(quat: DQuat) -> Self {
         let x = quat.x;
@@ -67,6 +87,7 @@ impl DMat4 {
         }
     }
 
+    /// Convert to single-precision [`Mat4`] (f32). Useful when passing to GPU or float APIs.
     #[inline]
     pub fn as_mat4(self) -> Mat4 {
         Mat4::from_cols(
@@ -97,6 +118,7 @@ impl DMat4 {
         )
     }
 
+    /// Build from a single-precision [`Mat4`]. Components are cast to f64.
     #[inline]
     pub fn from_mat4(m: Mat4) -> Self {
         let cols = m.to_cols_array();
@@ -128,6 +150,7 @@ impl DMat4 {
         }
     }
 
+    /// Transform a 3D point (rotation/scale then translation). Same as `Mat4::transform_point3` but in f64.
     #[inline]
     pub fn transform_point3(self, v: DVec3) -> DVec3 {
         DVec3::new(

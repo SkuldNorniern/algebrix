@@ -1,5 +1,20 @@
-//! 3D vector implementation (f64)
+//! 3D float vector in double precision (f64). Use when you need more precision than Vec3; convert
+//! to/from Vec3 with [`from_vec3`](DVec3::from_vec3) / [`as_vec3`](DVec3::as_vec3).
+//!
+//! # Example
+//!
+//! ```rust
+//! use algebrix::{DVec3, Vec3};
+//! let a = DVec3::new(1.0, 2.0, 3.0);
+//! let b = DVec3::from_vec3(Vec3::new(1.0, 0.0, 0.0));
+//! let c = a + b;
+//! assert!((c.x - 2.0).abs() < 1e-10);
+//! ```
+//!
 
+/// 3D vector in double precision (f64).
+///
+/// Use when you need more precision than [`Vec3`](crate::Vec3); convert with [`from_vec3`](DVec3::from_vec3) and [`as_vec3`](DVec3::as_vec3).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DVec3 {
     pub x: f64,
@@ -8,36 +23,43 @@ pub struct DVec3 {
 }
 
 impl DVec3 {
+    /// Zero vector.
     pub const ZERO: DVec3 = DVec3 {
         x: 0.0,
         y: 0.0,
         z: 0.0,
     };
+    /// All components 1.
     pub const ONE: DVec3 = DVec3 {
         x: 1.0,
         y: 1.0,
         z: 1.0,
     };
+    /// Unit vector along +X.
     pub const X: DVec3 = DVec3 {
         x: 1.0,
         y: 0.0,
         z: 0.0,
     };
+    /// Unit vector along +Y.
     pub const Y: DVec3 = DVec3 {
         x: 0.0,
         y: 1.0,
         z: 0.0,
     };
+    /// Unit vector along +Z.
     pub const Z: DVec3 = DVec3 {
         x: 0.0,
         y: 0.0,
         z: 1.0,
     };
 
+    /// Build from x, y, z.
     pub const fn new(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
     }
 
+    /// All components set to `value`.
     #[inline]
     pub fn splat(value: f64) -> Self {
         Self {
@@ -47,26 +69,31 @@ impl DVec3 {
         }
     }
 
+    /// Euclidean length.
     #[inline]
     pub fn length(self) -> f64 {
         self.length_squared().sqrt()
     }
 
+    /// Squared length (avoids sqrt).
     #[inline]
     pub fn length_squared(self) -> f64 {
         self.x * self.x + self.y * self.y + self.z * self.z
     }
 
+    /// Distance between two points.
     #[inline]
     pub fn distance(self, other: Self) -> f64 {
         (self - other).length()
     }
 
+    /// Squared distance (avoids sqrt).
     #[inline]
     pub fn distance_squared(self, other: Self) -> f64 {
         (self - other).length_squared()
     }
 
+    /// Unit vector in the same direction. Returns zero if length is zero.
     #[inline]
     pub fn normalize(self) -> Self {
         let len_sq = self.length_squared();
@@ -82,11 +109,13 @@ impl DVec3 {
         }
     }
 
+    /// Dot product.
     #[inline]
     pub fn dot(self, other: Self) -> f64 {
         self.x * other.x + self.y * other.y + self.z * other.z
     }
 
+    /// Cross product (right-handed).
     #[inline]
     pub fn cross(self, other: Self) -> Self {
         Self {
@@ -96,6 +125,7 @@ impl DVec3 {
         }
     }
 
+    /// Linear interpolation: `self * (1 - t) + other * t`.
     #[inline]
     pub fn lerp(self, other: Self, t: f64) -> Self {
         let t_inv = 1.0 - t;
@@ -106,11 +136,13 @@ impl DVec3 {
         }
     }
 
+    /// Convert to single-precision [`Vec3`](crate::Vec3).
     #[inline]
     pub fn as_vec3(self) -> crate::Vec3 {
         crate::Vec3::new(self.x as f32, self.y as f32, self.z as f32)
     }
 
+    /// Build from a single-precision [`Vec3`](crate::Vec3).
     #[inline]
     pub fn from_vec3(v: crate::Vec3) -> Self {
         Self::new(v.x as f64, v.y as f64, v.z as f64)

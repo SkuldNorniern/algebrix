@@ -1,6 +1,33 @@
-//! 4x4 matrix implementation
+//! 4x4 column-major matrix: 3D affine or projective transform.
+//!
+//! Use [`from_translation`](Mat4::from_translation), [`from_quat`](Mat4::from_quat),
+//! [`from_scale_rotation_translation`](Mat4::from_scale_rotation_translation) for affine; perspective helpers
+//! like [`perspective_lh`](Mat4::perspective_lh) for projection. Multiply Vec4 on the right; use
+//! [`transform_point3`](Mat4::transform_point3) / [`transform_vector3`](Mat4::transform_vector3) for Vec3.
+//!
+//! # Example
+//!
+//! ```rust
+//! use algebrix::{Mat4, Quat, Vec3};
+//!
+//! let t = Mat4::from_translation(Vec3::new(1.0, 2.0, 3.0));
+//! let p = Vec3::ZERO;
+//! let q = t.transform_point3(p);
+//! assert_eq!(q, Vec3::new(1.0, 2.0, 3.0));
+//!
+//! let r = Mat4::from_quat(Quat::IDENTITY);
+//! let v = Vec3::X;
+//! assert!((r.transform_vector3(v) - v).length() < 1e-5);
+//! ```
+//!
 
-use crate::{Quat, Vec3, Vec4, simd};
+use crate::{Mat3, Quat, Vec3, Vec4};
+
+#[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
+use std::arch::x86_64::*;
+
+#[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
+use std::arch::aarch64::*;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -128,6 +155,86 @@ impl Mat4 {
         }
     }
 
+    /// Create a rotation matrix around the Z axis
+    #[inline]
+    pub fn from_rotation_z(angle: f32) -> Self {
+        let s = angle.sin();
+        let c = angle.cos();
+        Self {
+            x_axis: Vec4::new(c, s, 0.0, 0.0),
+            y_axis: Vec4::new(-s, c, 0.0, 0.0),
+            z_axis: Vec4::new(0.0, 0.0, 1.0, 0.0),
+            w_axis: Vec4::new(0.0, 0.0, 0.0, 1.0),
+        }
+    }
+
+    /// Create a rotation matrix from axis and angle
+    #[inline]
+    pub fn from_axis_angle(axis: Vec3, angle: f32) -> Self {
+        let axis = axis.normalize();
+        let (sin, cos) = angle.sin_cos();
+        let one_minus_cos = 1.0 - cos;
+
+        let x = axis.x;
+        let y = axis.y;
+        let z = axis.z;
+
+        Self {
+            x_axis: Vec4::new(
+                cos + x * x * one_minus_cos,
+                x * y * one_minus_cos + z * sin,
+                x * z * one_minus_cos - y * sin,
+                0.0,
+            ),
+            y_axis: Vec4::new(
+                y * x * one_minus_cos - z * sin,
+                cos + y * y * one_minus_cos,
+                y * z * one_minus_cos + x * sin,
+                0.0,
+            ),
+            z_axis: Vec4::new(
+                z * x * one_minus_cos + y * sin,
+                z * y * one_minus_cos - x * sin,
+                cos + z * z * one_minus_cos,
+                0.0,
+            ),
+            w_axis: Vec4::new(0.0, 0.0, 0.0, 1.0),
+        }
+    }
+
+    /// Create a uniform scale matrix
+    #[inline]
+    pub fn from_scale(scale: f32) -> Self {
+        Self {
+            x_axis: Vec4::new(scale, 0.0, 0.0, 0.0),
+            y_axis: Vec4::new(0.0, scale, 0.0, 0.0),
+            z_axis: Vec4::new(0.0, 0.0, scale, 0.0),
+            w_axis: Vec4::new(0.0, 0.0, 0.0, 1.0),
+        }
+    }
+
+    /// Create a non-uniform scale matrix
+    #[inline]
+    pub fn from_nonuniform_scale(scale: Vec3) -> Self {
+        Self {
+            x_axis: Vec4::new(scale.x, 0.0, 0.0, 0.0),
+            y_axis: Vec4::new(0.0, scale.y, 0.0, 0.0),
+            z_axis: Vec4::new(0.0, 0.0, scale.z, 0.0),
+            w_axis: Vec4::new(0.0, 0.0, 0.0, 1.0),
+        }
+    }
+
+    /// Create a scale, rotation, translation matrix
+    #[inline]
+    pub fn from_scale_rotation_translation(scale: Vec3, rotation: Quat, translation: Vec3) -> Self {
+        let mut m = Self::from_quat(rotation);
+        m.x_axis = m.x_axis * scale.x;
+        m.y_axis = m.y_axis * scale.y;
+        m.z_axis = m.z_axis * scale.z;
+        m.w_axis = Vec4::new(translation.x, translation.y, translation.z, 1.0);
+        m
+    }
+
     #[inline]
     pub fn perspective_rh(fov_y_radians: f32, aspect: f32, z_near: f32, z_far: f32) -> Self {
         let half_fov = fov_y_radians * 0.5;
@@ -147,34 +254,227 @@ impl Mat4 {
 
     #[inline]
     pub fn look_at_rh(eye: Vec3, center: Vec3, up: Vec3) -> Self {
-        let f = (center - eye).normalize();
+        Self::look_to_rh(eye, center - eye, up)
+    }
+
+    /// Left-handed look-at matrix
+    #[inline]
+    pub fn look_at_lh(eye: Vec3, center: Vec3, up: Vec3) -> Self {
+        Self::look_to_lh(eye, center - eye, up)
+    }
+
+    /// Right-handed look-to matrix (direction-based)
+    #[inline]
+    pub fn look_to_rh(eye: Vec3, dir: Vec3, up: Vec3) -> Self {
+        let f = dir.normalize();
         let s = f.cross(up).normalize();
         let u = s.cross(f);
-        let s_dot_eye = s.dot(eye);
-        let u_dot_eye = u.dot(eye);
-        let f_dot_eye = f.dot(eye);
 
         Self {
             x_axis: Vec4::new(s.x, u.x, -f.x, 0.0),
             y_axis: Vec4::new(s.y, u.y, -f.y, 0.0),
             z_axis: Vec4::new(s.z, u.z, -f.z, 0.0),
-            w_axis: Vec4::new(-s_dot_eye, -u_dot_eye, f_dot_eye, 1.0),
+            w_axis: Vec4::new(-s.dot(eye), -u.dot(eye), f.dot(eye), 1.0),
         }
+    }
+
+    /// Left-handed look-to matrix (direction-based)
+    #[inline]
+    pub fn look_to_lh(eye: Vec3, dir: Vec3, up: Vec3) -> Self {
+        Self::look_to_rh(eye, -dir, up)
+    }
+
+    /// Left-handed perspective projection matrix
+    #[inline]
+    pub fn perspective_lh(fov_y_radians: f32, aspect: f32, z_near: f32, z_far: f32) -> Self {
+        let half_fov = fov_y_radians * 0.5;
+        let f = half_fov.tan().recip();
+        let inv_length = (z_far - z_near).recip();
+        let a = f * aspect.recip();
+        let b = (z_near + z_far) * inv_length;
+        let c = -(2.0 * z_near * z_far) * inv_length;
+
+        Self {
+            x_axis: Vec4::new(a, 0.0, 0.0, 0.0),
+            y_axis: Vec4::new(0.0, f, 0.0, 0.0),
+            z_axis: Vec4::new(0.0, 0.0, b, 1.0),
+            w_axis: Vec4::new(0.0, 0.0, c, 0.0),
+        }
+    }
+
+    /// Right-handed orthographic projection matrix
+    #[inline]
+    pub fn orthographic_rh(left: f32, right: f32, bottom: f32, top: f32, z_near: f32, z_far: f32) -> Self {
+        let rml = right - left;
+        let tmb = top - bottom;
+        let fmn = z_far - z_near;
+
+        Self {
+            x_axis: Vec4::new(2.0 / rml, 0.0, 0.0, 0.0),
+            y_axis: Vec4::new(0.0, 2.0 / tmb, 0.0, 0.0),
+            z_axis: Vec4::new(0.0, 0.0, -2.0 / fmn, 0.0),
+            w_axis: Vec4::new(
+                -(right + left) / rml,
+                -(top + bottom) / tmb,
+                -(z_far + z_near) / fmn,
+                1.0,
+            ),
+        }
+    }
+
+    /// Left-handed orthographic projection matrix
+    #[inline]
+    pub fn orthographic_lh(left: f32, right: f32, bottom: f32, top: f32, z_near: f32, z_far: f32) -> Self {
+        let rml = right - left;
+        let tmb = top - bottom;
+        let fmn = z_far - z_near;
+
+        Self {
+            x_axis: Vec4::new(2.0 / rml, 0.0, 0.0, 0.0),
+            y_axis: Vec4::new(0.0, 2.0 / tmb, 0.0, 0.0),
+            z_axis: Vec4::new(0.0, 0.0, 2.0 / fmn, 0.0),
+            w_axis: Vec4::new(
+                -(right + left) / rml,
+                -(top + bottom) / tmb,
+                -(z_far + z_near) / fmn,
+                1.0,
+            ),
+        }
+    }
+
+    /// Compute the trace (sum of diagonal elements)
+    #[inline(always)]
+    pub fn trace(&self) -> f32 {
+        self.x_axis.x + self.y_axis.y + self.z_axis.z + self.w_axis.w
     }
 
     #[inline]
     pub fn transpose(self) -> Self {
-        simd::mat4_transpose(self)
+        #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
+        {
+            unsafe {
+                let col0 = _mm_load_ps(&self.x_axis.x);
+                let col1 = _mm_load_ps(&self.y_axis.x);
+                let col2 = _mm_load_ps(&self.z_axis.x);
+                let col3 = _mm_load_ps(&self.w_axis.x);
+
+                let tmp0 = _mm_unpacklo_ps(col0, col1);
+                let tmp1 = _mm_unpackhi_ps(col0, col1);
+                let tmp2 = _mm_unpacklo_ps(col2, col3);
+                let tmp3 = _mm_unpackhi_ps(col2, col3);
+
+                let row0 = _mm_movelh_ps(tmp0, tmp2);
+                let row1 = _mm_movehl_ps(tmp2, tmp0);
+                let row2 = _mm_movelh_ps(tmp1, tmp3);
+                let row3 = _mm_movehl_ps(tmp3, tmp1);
+
+                let mut out = Self::IDENTITY;
+                _mm_store_ps(&mut out.x_axis.x, row0);
+                _mm_store_ps(&mut out.y_axis.x, row1);
+                _mm_store_ps(&mut out.z_axis.x, row2);
+                _mm_store_ps(&mut out.w_axis.x, row3);
+                out
+            }
+        }
+        #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
+        {
+            unsafe {
+                let col0 = vld1q_f32(&self.x_axis.x);
+                let col1 = vld1q_f32(&self.y_axis.x);
+                let col2 = vld1q_f32(&self.z_axis.x);
+                let col3 = vld1q_f32(&self.w_axis.x);
+
+                let tmp0 = vzip1q_f32(col0, col2);
+                let tmp1 = vzip2q_f32(col0, col2);
+                let tmp2 = vzip1q_f32(col1, col3);
+                let tmp3 = vzip2q_f32(col1, col3);
+
+                let row0 = vzip1q_f32(tmp0, tmp2);
+                let row1 = vzip2q_f32(tmp0, tmp2);
+                let row2 = vzip1q_f32(tmp1, tmp3);
+                let row3 = vzip2q_f32(tmp1, tmp3);
+
+                let mut out = Self::IDENTITY;
+                vst1q_f32(&mut out.x_axis.x, row0);
+                vst1q_f32(&mut out.y_axis.x, row1);
+                vst1q_f32(&mut out.z_axis.x, row2);
+                vst1q_f32(&mut out.w_axis.x, row3);
+                out
+            }
+        }
+        #[cfg(not(any(
+            all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
+            all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm"))
+        )))]
+        {
+            Self {
+                x_axis: Vec4::new(self.x_axis.x, self.y_axis.x, self.z_axis.x, self.w_axis.x),
+                y_axis: Vec4::new(self.x_axis.y, self.y_axis.y, self.z_axis.y, self.w_axis.y),
+                z_axis: Vec4::new(self.x_axis.z, self.y_axis.z, self.z_axis.z, self.w_axis.z),
+                w_axis: Vec4::new(self.x_axis.w, self.y_axis.w, self.z_axis.w, self.w_axis.w),
+            }
+        }
     }
 
     #[inline]
     pub fn mul_vec4(self, other: Vec4) -> Vec4 {
-        simd::mat4_mul_vec4(self, other)
+        #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
+        {
+            unsafe {
+                let col0 = _mm_load_ps(&self.x_axis.x);
+                let col1 = _mm_load_ps(&self.y_axis.x);
+                let col2 = _mm_load_ps(&self.z_axis.x);
+                let col3 = _mm_load_ps(&self.w_axis.x);
+
+                let v_x = _mm_set1_ps(other.x);
+                let v_y = _mm_set1_ps(other.y);
+                let v_z = _mm_set1_ps(other.z);
+                let v_w = _mm_set1_ps(other.w);
+
+                let mut res = _mm_mul_ps(col0, v_x);
+                res = _mm_add_ps(res, _mm_mul_ps(col1, v_y));
+                res = _mm_add_ps(res, _mm_mul_ps(col2, v_z));
+                res = _mm_add_ps(res, _mm_mul_ps(col3, v_w));
+
+                let mut out = Vec4::ZERO;
+                _mm_store_ps(&mut out.x, res);
+                out
+            }
+        }
+        #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
+        {
+            unsafe {
+                let col0 = vld1q_f32(&self.x_axis.x);
+                let col1 = vld1q_f32(&self.y_axis.x);
+                let col2 = vld1q_f32(&self.z_axis.x);
+                let col3 = vld1q_f32(&self.w_axis.x);
+
+                let mut res = vmulq_n_f32(col0, other.x);
+                res = vfmaq_n_f32(res, col1, other.y);
+                res = vfmaq_n_f32(res, col2, other.z);
+                res = vfmaq_n_f32(res, col3, other.w);
+
+                let mut out = Vec4::ZERO;
+                vst1q_f32(&mut out.x, res);
+                out
+            }
+        }
+        #[cfg(not(any(
+            all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
+            all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm"))
+        )))]
+        {
+            Vec4::new(
+                self.x_axis.x * other.x + self.y_axis.x * other.y + self.z_axis.x * other.z + self.w_axis.x * other.w,
+                self.x_axis.y * other.x + self.y_axis.y * other.y + self.z_axis.y * other.z + self.w_axis.y * other.w,
+                self.x_axis.z * other.x + self.y_axis.z * other.y + self.z_axis.z * other.z + self.w_axis.z * other.w,
+                self.x_axis.w * other.x + self.y_axis.w * other.y + self.z_axis.w * other.z + self.w_axis.w * other.w,
+            )
+        }
     }
 
     #[inline]
     pub fn mul_vec3(self, other: Vec3) -> Vec3 {
-        // Scalar is fine for single vec3, but we can use mul_vec4 for consistency
         let res = self.mul_vec4(Vec4::new(other.x, other.y, other.z, 1.0));
         Vec3::new(res.x, res.y, res.z)
     }
@@ -193,7 +493,12 @@ impl Mat4 {
 
     #[inline]
     pub fn mul_affine(self, other: Self) -> Self {
-        simd::mat4_mul_mat4(self, other)
+        Self {
+            x_axis: self.mul_vec4(other.x_axis),
+            y_axis: self.mul_vec4(other.y_axis),
+            z_axis: self.mul_vec4(other.z_axis),
+            w_axis: self.mul_vec4(other.w_axis),
+        }
     }
 
     pub fn to_cols_array(self) -> [f32; 16] {
@@ -218,8 +523,8 @@ impl Mat4 {
     }
 
     #[inline]
-    pub fn as_ref(&self) -> &[f32; 16] {
-        unsafe { &*(self as *const Mat4 as *const [f32; 16]) }
+    pub fn as_array(&self) -> &[f32; 16] {
+        self.as_ref()
     }
 
     #[inline]
@@ -296,13 +601,62 @@ impl Mat4 {
             ),
         ))
     }
+
+    /// Decompose into scale, rotation (quaternion), and translation. Returns None if the matrix is singular or has non-uniform scale.
+    #[inline]
+    pub fn decompose(&self) -> Option<(Vec3, Quat, Vec3)> {
+        let translation = Vec3::new(self.w_axis.x, self.w_axis.y, self.w_axis.z);
+
+        let scale_x = Vec3::new(self.x_axis.x, self.x_axis.y, self.x_axis.z).length();
+        let scale_y = Vec3::new(self.y_axis.x, self.y_axis.y, self.y_axis.z).length();
+        let scale_z = Vec3::new(self.z_axis.x, self.z_axis.y, self.z_axis.z).length();
+        let scale = Vec3::new(scale_x, scale_y, scale_z);
+
+        if scale.x < f32::EPSILON || scale.y < f32::EPSILON || scale.z < f32::EPSILON {
+            return None;
+        }
+
+        let inv_scale = Vec3::new(scale.x.recip(), scale.y.recip(), scale.z.recip());
+        let rotation_matrix = Mat3::new(
+            Vec3::new(self.x_axis.x * inv_scale.x, self.x_axis.y * inv_scale.y, self.x_axis.z * inv_scale.z),
+            Vec3::new(self.y_axis.x * inv_scale.x, self.y_axis.y * inv_scale.y, self.y_axis.z * inv_scale.z),
+            Vec3::new(self.z_axis.x * inv_scale.x, self.z_axis.y * inv_scale.y, self.z_axis.z * inv_scale.z),
+        );
+
+        let rotation = Quat::from_mat3(&rotation_matrix);
+
+        Some((scale, rotation, translation))
+    }
+
+    /// Create from array (column-major order)
+    #[inline]
+    pub fn from_cols_array(m: &[f32; 16]) -> Self {
+        Self {
+            x_axis: Vec4::new(m[0], m[1], m[2], m[3]),
+            y_axis: Vec4::new(m[4], m[5], m[6], m[7]),
+            z_axis: Vec4::new(m[8], m[9], m[10], m[11]),
+            w_axis: Vec4::new(m[12], m[13], m[14], m[15]),
+        }
+    }
+}
+
+impl std::convert::AsRef<[f32; 16]> for Mat4 {
+    #[inline]
+    fn as_ref(&self) -> &[f32; 16] {
+        unsafe { &*(self as *const Mat4 as *const [f32; 16]) }
+    }
 }
 
 impl std::ops::Mul for Mat4 {
     type Output = Self;
     #[inline]
     fn mul(self, other: Self) -> Self {
-        simd::mat4_mul_mat4(self, other)
+        Self {
+            x_axis: self.mul_vec4(other.x_axis),
+            y_axis: self.mul_vec4(other.y_axis),
+            z_axis: self.mul_vec4(other.z_axis),
+            w_axis: self.mul_vec4(other.w_axis),
+        }
     }
 }
 
@@ -395,5 +749,22 @@ mod tests {
         for i in 0..16 {
             assert!((result.as_ref()[i] - Mat4::IDENTITY.as_ref()[i]).abs() < 0.0001);
         }
+    }
+
+    #[test]
+    fn test_mat4_decompose() {
+        let scale = Vec3::new(2.0, 3.0, 4.0);
+        let rotation = Quat::from_axis_angle(Vec3::Y, std::f32::consts::FRAC_PI_4);
+        let translation = Vec3::new(1.0, 2.0, 3.0);
+
+        let m = Mat4::from_scale_rotation_translation(scale, rotation, translation);
+        let (decomp_scale, _decomp_rot, decomp_trans) = m.decompose().unwrap();
+
+        assert!((decomp_scale.x - scale.x).abs() < 0.01);
+        assert!((decomp_scale.y - scale.y).abs() < 0.01);
+        assert!((decomp_scale.z - scale.z).abs() < 0.01);
+        assert!((decomp_trans.x - translation.x).abs() < 0.0001);
+        assert!((decomp_trans.y - translation.y).abs() < 0.0001);
+        assert!((decomp_trans.z - translation.z).abs() < 0.0001);
     }
 }
