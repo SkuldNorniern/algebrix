@@ -7,7 +7,6 @@ documentation = "https://docs.rs/algebrix"
 repository = "https://github.com/SkuldNorniern/algebrix"
 license = "Apache-2.0"
 authors = ["SkuldNorniern <eira@nornity.com>"]
-categories = ["math"]
 keywords = ["math", "vector", "matrix", "quaternion", "geometry"]
 
 [lib]
