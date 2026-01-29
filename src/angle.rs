@@ -24,25 +24,25 @@ use std::ops::{Add, Sub, Mul, Div, Neg};
 pub struct Rad(pub f32);
 
 impl Rad {
-    /// Create from radians
+    /// Angle from radians. For degrees use `Rad::from(Deg::new(90.0))`.
     #[inline(always)]
     pub const fn new(radians: f32) -> Self {
         Self(radians)
     }
 
-    /// Convert to degrees
+    /// Same angle in degrees.
     #[inline(always)]
     pub fn to_deg(self) -> Deg {
         Deg(self.0 * 180.0 / std::f32::consts::PI)
     }
 
-    /// Get the value in radians
+    /// Value in radians (f32).
     #[inline(always)]
     pub fn as_rad(self) -> f32 {
         self.0
     }
 
-    /// Normalize to [0, 2π)
+    /// Wrap into [0, 2π); useful for canonical angle comparison.
     #[inline]
     pub fn normalize(self) -> Self {
         let two_pi = std::f32::consts::TAU;
@@ -113,25 +113,25 @@ impl Neg for Rad {
 pub struct Deg(pub f32);
 
 impl Deg {
-    /// Create from degrees
+    /// Angle from degrees.
     #[inline(always)]
     pub const fn new(degrees: f32) -> Self {
         Self(degrees)
     }
 
-    /// Convert to radians
+    /// Same angle in radians.
     #[inline(always)]
     pub fn to_rad(self) -> Rad {
         Rad(self.0 * std::f32::consts::PI / 180.0)
     }
 
-    /// Get the value in degrees
+    /// Value in degrees (f32).
     #[inline(always)]
     pub fn as_deg(self) -> f32 {
         self.0
     }
 
-    /// Normalize to [0, 360)
+    /// Wrap into [0, 360); useful for canonical angle comparison.
     #[inline]
     pub fn normalize(self) -> Self {
         let mut angle = self.0 % 360.0;
@@ -196,7 +196,7 @@ impl Neg for Deg {
     }
 }
 
-/// Euler rotation order for type-safe Euler angle handling
+/// Order of axis rotations for Euler angles (e.g. XYZ = rotate X, then Y, then Z). Used with [`Quat::from_euler`](crate::Quat::from_euler) and [`Quat::to_euler`](crate::Quat::to_euler).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(clippy::upper_case_acronyms)]
 pub enum EulerRot {

@@ -13,6 +13,7 @@
 
 use crate::Vec3;
 
+/// 3D unsigned integer vector (u32). Same layout as [`Vec3`]; use [`as_vec3`](UVec3::as_vec3) to convert to float.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UVec3 {
     pub x: u32,
@@ -21,12 +22,18 @@ pub struct UVec3 {
 }
 
 impl UVec3 {
+    /// Zero vector (0, 0, 0).
     pub const ZERO: UVec3 = UVec3 { x: 0, y: 0, z: 0 };
+    /// Vector (1, 1, 1).
     pub const ONE: UVec3 = UVec3 { x: 1, y: 1, z: 1 };
+    /// Unit vector (1, 0, 0).
     pub const X: UVec3 = UVec3 { x: 1, y: 0, z: 0 };
+    /// Unit vector (0, 1, 0).
     pub const Y: UVec3 = UVec3 { x: 0, y: 1, z: 0 };
+    /// Unit vector (0, 0, 1).
     pub const Z: UVec3 = UVec3 { x: 0, y: 0, z: 1 };
 
+    /// Build from x, y, z.
     #[inline(always)]
     pub const fn new(x: u32, y: u32, z: u32) -> Self {
         Self { x, y, z }
@@ -37,6 +44,7 @@ impl UVec3 {
         Self { x: v, y: v, z: v }
     }
 
+    /// Component-wise minimum.
     #[inline(always)]
     pub fn min(self, other: Self) -> Self {
         Self {
@@ -46,6 +54,7 @@ impl UVec3 {
         }
     }
 
+    /// Component-wise maximum.
     #[inline(always)]
     pub fn max(self, other: Self) -> Self {
         Self {
@@ -55,16 +64,19 @@ impl UVec3 {
         }
     }
 
+    /// Smallest component.
     #[inline(always)]
     pub fn min_element(self) -> u32 {
         self.x.min(self.y).min(self.z)
     }
 
+    /// Largest component.
     #[inline(always)]
     pub fn max_element(self) -> u32 {
         self.x.max(self.y).max(self.z)
     }
 
+    /// Clamp each component to the range [min, max] per axis.
     #[inline(always)]
     pub fn clamp(self, min: Self, max: Self) -> Self {
         Self {
@@ -74,26 +86,31 @@ impl UVec3 {
         }
     }
 
+    /// Convert to float [`Vec3`] (component cast).
     #[inline(always)]
     pub fn as_vec3(self) -> Vec3 {
         Vec3::new(self.x as f32, self.y as f32, self.z as f32)
     }
 
+    /// Build from a 3-element array.
     #[inline(always)]
     pub fn from_array(a: [u32; 3]) -> Self {
         Self { x: a[0], y: a[1], z: a[2] }
     }
 
+    /// Copy into a 3-element array [x, y, z].
     #[inline(always)]
     pub fn to_array(self) -> [u32; 3] {
         [self.x, self.y, self.z]
     }
 
+    /// Dot product (x*x + y*y + z*z).
     #[inline(always)]
     pub fn dot(self, other: Self) -> u32 {
         self.x * other.x + self.y * other.y + self.z * other.z
     }
 
+    /// Add component-wise; saturates at u32::MAX on overflow.
     #[inline(always)]
     pub fn saturating_add(self, other: Self) -> Self {
         Self {
@@ -103,6 +120,7 @@ impl UVec3 {
         }
     }
 
+    /// Subtract component-wise; saturates at 0 on underflow.
     #[inline(always)]
     pub fn saturating_sub(self, other: Self) -> Self {
         Self {

@@ -16,7 +16,10 @@
 
 use crate::{Mat3, Quat, Vec3};
 
-/// Scale/rotation and translation (3D).
+/// 3D affine transform: a 3x3 linear part (rotation/scale) plus a translation.
+///
+/// No perspective; use [`transform_point3`](Affine3::transform_point3) for points and
+/// [`transform_vector3`](Affine3::transform_vector3) for directions.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Affine3 {
     pub matrix: Mat3,
@@ -24,16 +27,19 @@ pub struct Affine3 {
 }
 
 impl Affine3 {
+    /// Identity (no rotation, no scale, no translation).
     pub const IDENTITY: Affine3 = Affine3 {
         matrix: Mat3::IDENTITY,
         translation: Vec3::ZERO,
     };
 
+    /// Build from a 3x3 matrix and translation.
     #[inline(always)]
     pub const fn new(matrix: Mat3, translation: Vec3) -> Self {
         Self { matrix, translation }
     }
 
+    /// Translation only (identity rotation/scale).
     #[inline]
     pub fn from_translation(translation: Vec3) -> Self {
         Self {
@@ -42,6 +48,7 @@ impl Affine3 {
         }
     }
 
+    /// Rotation from a unit quaternion; no translation.
     #[inline]
     pub fn from_quat(quat: Quat) -> Self {
         Self {
@@ -50,6 +57,7 @@ impl Affine3 {
         }
     }
 
+    /// Non-uniform scale only; no rotation or translation.
     #[inline]
     pub fn from_scale(scale: Vec3) -> Self {
         Self {
@@ -58,6 +66,7 @@ impl Affine3 {
         }
     }
 
+    /// Rotation from quat and translation.
     #[inline]
     pub fn from_rotation_translation(quat: Quat, translation: Vec3) -> Self {
         Self {
@@ -66,6 +75,7 @@ impl Affine3 {
         }
     }
 
+    /// Full SRT: scale, then rotation from quat, then translation.
     #[inline]
     pub fn from_scale_rotation_translation(scale: Vec3, quat: Quat, translation: Vec3) -> Self {
         let mut mat = Mat3::from_quat(quat);
@@ -78,19 +88,19 @@ impl Affine3 {
         }
     }
 
-    /// Transform a point (applies rotation/scale then translation)
+    /// Transform a 3D point: apply rotation/scale then add translation.
     #[inline]
     pub fn transform_point3(self, point: Vec3) -> Vec3 {
         self.matrix * point + self.translation
     }
 
-    /// Transform a vector (applies only rotation/scale, ignores translation)
+    /// Transform a 3D direction: rotation/scale only (translation ignored).
     #[inline]
     pub fn transform_vector3(self, vector: Vec3) -> Vec3 {
         self.matrix * vector
     }
 
-    /// Compute the inverse of this affine transformation
+    /// Inverse affine transform. Returns `None` if the linear part is singular.
     #[inline]
     pub fn inverse(self) -> Option<Self> {
         let mat_inv = self.matrix.inverse()?;
@@ -100,7 +110,7 @@ impl Affine3 {
         })
     }
 
-    /// Create a look-at transformation (for camera/view matrix)
+    /// Right-handed look-at: from `eye` toward `center`, with `up` as the up vector. Useful for camera view.
     #[inline]
     pub fn look_at_rh(eye: Vec3, center: Vec3, up: Vec3) -> Self {
         let f = (center - eye).normalize();

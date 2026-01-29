@@ -18,7 +18,7 @@
 
 use crate::{Vec2, Vec3};
 
-/// 2D Axis-Aligned Bounding Box
+/// 2D axis-aligned bounding box (min and max corners).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Aabb2 {
     pub min: Vec2,
@@ -26,13 +26,13 @@ pub struct Aabb2 {
 }
 
 impl Aabb2 {
-    /// Create a new AABB from min and max points
+    /// Box with the given min and max corners.
     #[inline]
     pub const fn new(min: Vec2, max: Vec2) -> Self {
         Self { min, max }
     }
 
-    /// Create an AABB from a center and size
+    /// Box centered at `center` with the given `size` (half-extents applied on each axis).
     #[inline]
     pub fn from_center_size(center: Vec2, size: Vec2) -> Self {
         let half = size * 0.5;
@@ -42,19 +42,19 @@ impl Aabb2 {
         }
     }
 
-    /// Get the center of the AABB
+    /// Center of the box (midpoint of min and max).
     #[inline]
     pub fn center(&self) -> Vec2 {
         (self.min + self.max) * 0.5
     }
 
-    /// Get the size of the AABB
+    /// Size per axis (max - min).
     #[inline]
     pub fn size(&self) -> Vec2 {
         self.max - self.min
     }
 
-    /// Check if a point is contained in the AABB
+    /// True if the point is inside or on the boundary of the box.
     #[inline]
     pub fn contains(&self, point: Vec2) -> bool {
         point.x >= self.min.x
@@ -63,7 +63,7 @@ impl Aabb2 {
             && point.y <= self.max.y
     }
 
-    /// Check if this AABB intersects with another
+    /// True if this box and `other` overlap (intersect).
     #[inline]
     pub fn intersects(&self, other: &Self) -> bool {
         self.min.x <= other.max.x
@@ -72,7 +72,7 @@ impl Aabb2 {
             && self.max.y >= other.min.y
     }
 
-    /// Create the union of two AABBs
+    /// Smallest box that contains both this box and `other`.
     #[inline]
     pub fn union(&self, other: &Self) -> Self {
         Self {
@@ -87,7 +87,7 @@ impl Aabb2 {
         }
     }
 
-    /// Expand the AABB by a margin
+    /// Box expanded by `margin` on each side (min -= margin, max += margin).
     #[inline]
     pub fn expand(&self, margin: Vec2) -> Self {
         Self {
@@ -97,7 +97,7 @@ impl Aabb2 {
     }
 }
 
-/// 3D Axis-Aligned Bounding Box
+/// 3D axis-aligned bounding box (min and max corners).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Aabb3 {
     pub min: Vec3,
@@ -105,13 +105,13 @@ pub struct Aabb3 {
 }
 
 impl Aabb3 {
-    /// Create a new AABB from min and max points
+    /// Box with the given min and max corners.
     #[inline]
     pub const fn new(min: Vec3, max: Vec3) -> Self {
         Self { min, max }
     }
 
-    /// Create an AABB from a center and size
+    /// Box centered at `center` with the given `size` (half-extents applied on each axis).
     #[inline]
     pub fn from_center_size(center: Vec3, size: Vec3) -> Self {
         let half = size * 0.5;
@@ -121,19 +121,19 @@ impl Aabb3 {
         }
     }
 
-    /// Get the center of the AABB
+    /// Center of the box (midpoint of min and max).
     #[inline]
     pub fn center(&self) -> Vec3 {
         (self.min + self.max) * 0.5
     }
 
-    /// Get the size of the AABB
+    /// Size per axis (max - min).
     #[inline]
     pub fn size(&self) -> Vec3 {
         self.max - self.min
     }
 
-    /// Check if a point is contained in the AABB
+    /// True if the point is inside or on the boundary of the box.
     #[inline]
     pub fn contains(&self, point: Vec3) -> bool {
         point.x >= self.min.x
@@ -144,7 +144,7 @@ impl Aabb3 {
             && point.z <= self.max.z
     }
 
-    /// Check if this AABB intersects with another
+    /// True if this box and `other` overlap (intersect).
     #[inline]
     pub fn intersects(&self, other: &Self) -> bool {
         self.min.x <= other.max.x
@@ -155,7 +155,7 @@ impl Aabb3 {
             && self.max.z >= other.min.z
     }
 
-    /// Create the union of two AABBs
+    /// Smallest box that contains both this box and `other`.
     #[inline]
     pub fn union(&self, other: &Self) -> Self {
         Self {
@@ -172,7 +172,7 @@ impl Aabb3 {
         }
     }
 
-    /// Expand the AABB by a margin
+    /// Box expanded by `margin` on each side (min -= margin, max += margin).
     #[inline]
     pub fn expand(&self, margin: Vec3) -> Self {
         Self {
@@ -181,7 +181,7 @@ impl Aabb3 {
         }
     }
 
-    /// Get the 8 corners of the AABB
+    /// The eight corners of the box (min, then variations of max components).
     #[inline]
     pub fn corners(&self) -> [Vec3; 8] {
         [

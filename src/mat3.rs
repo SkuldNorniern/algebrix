@@ -20,6 +20,9 @@
 
 use crate::Vec3;
 
+/// 3x3 column-major matrix for 3D rotation, scale, or combined linear transform.
+///
+/// Multiply a Vec3 on the right: `matrix * point`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Mat3 {
     pub x_axis: Vec3,
@@ -28,18 +31,21 @@ pub struct Mat3 {
 }
 
 impl Mat3 {
+    /// Zero matrix (all elements 0).
     pub const ZERO: Mat3 = Mat3 {
         x_axis: Vec3::ZERO,
         y_axis: Vec3::ZERO,
         z_axis: Vec3::ZERO,
     };
 
+    /// Identity matrix (no rotation, no scale).
     pub const IDENTITY: Mat3 = Mat3 {
         x_axis: Vec3::X,
         y_axis: Vec3::Y,
         z_axis: Vec3::Z,
     };
 
+    /// Build from three column vectors.
     pub const fn new(x_axis: Vec3, y_axis: Vec3, z_axis: Vec3) -> Self {
         Self {
             x_axis,
@@ -48,6 +54,7 @@ impl Mat3 {
         }
     }
 
+    /// Same as [`new`](Mat3::new); build from columns.
     pub const fn from_cols(x_axis: Vec3, y_axis: Vec3, z_axis: Vec3) -> Self {
         Self {
             x_axis,
@@ -56,6 +63,7 @@ impl Mat3 {
         }
     }
 
+    /// Diagonal matrix with (diagonal.x, diagonal.y, diagonal.z) on the diagonal.
     pub const fn from_diagonal(diagonal: Vec3) -> Self {
         Self {
             x_axis: Vec3::new(diagonal.x, 0.0, 0.0),
@@ -64,6 +72,7 @@ impl Mat3 {
         }
     }
 
+    /// Diagonal matrix with `value` on the diagonal (uniform scale).
     pub const fn from_diagonal_value(value: f32) -> Self {
         Self {
             x_axis: Vec3::new(value, 0.0, 0.0),
@@ -72,6 +81,7 @@ impl Mat3 {
         }
     }
 
+    /// Column at `index` (0, 1, or 2). Panics if `index > 2`.
     pub fn col(&self, index: usize) -> Vec3 {
         match index {
             0 => self.x_axis,
@@ -81,6 +91,7 @@ impl Mat3 {
         }
     }
 
+    /// Transpose: swap rows and columns.
     #[inline]
     pub fn transpose(self) -> Self {
         Self {
@@ -90,6 +101,7 @@ impl Mat3 {
         }
     }
 
+    /// Multiply matrix by a 3D vector.
     #[inline]
     pub fn mul_vec3(self, other: Vec3) -> Vec3 {
         Vec3::new(
@@ -108,7 +120,7 @@ impl Mat3 {
         )
     }
 
-    /// Compute the determinant of the matrix
+    /// Determinant (signed volume scale). Zero if the matrix is singular.
     #[inline]
     pub fn determinant(&self) -> f32 {
         self.x_axis.x * (self.y_axis.y * self.z_axis.z - self.y_axis.z * self.z_axis.y)
@@ -116,13 +128,13 @@ impl Mat3 {
             + self.z_axis.x * (self.x_axis.y * self.y_axis.z - self.x_axis.z * self.y_axis.y)
     }
 
-    /// Compute the trace (sum of diagonal elements)
+    /// Trace: sum of diagonal elements (x_axis.x + y_axis.y + z_axis.z).
     #[inline(always)]
     pub fn trace(&self) -> f32 {
         self.x_axis.x + self.y_axis.y + self.z_axis.z
     }
 
-    /// Compute the inverse of the matrix, returns None if not invertible
+    /// Inverse matrix. Returns `None` if determinant is zero (singular).
     #[inline]
     pub fn inverse(&self) -> Option<Self> {
         let det = self.determinant();
@@ -150,19 +162,19 @@ impl Mat3 {
         })
     }
 
-    /// Create a uniform scale matrix
+    /// Uniform scale matrix (scale along all axes).
     #[inline]
     pub fn from_scale(scale: f32) -> Self {
         Self::from_diagonal(Vec3::splat(scale))
     }
 
-    /// Create a non-uniform scale matrix
+    /// Non-uniform scale matrix (scale.x, scale.y, scale.z per axis).
     #[inline]
     pub fn from_nonuniform_scale(scale: Vec3) -> Self {
         Self::from_diagonal(scale)
     }
 
-    /// Create a rotation matrix around the X axis
+    /// Rotation around the X axis by `angle` radians (right-handed).
     #[inline]
     pub fn from_rotation_x(angle: f32) -> Self {
         let (sin, cos) = angle.sin_cos();
@@ -173,7 +185,7 @@ impl Mat3 {
         }
     }
 
-    /// Create a rotation matrix around the Y axis
+    /// Rotation around the Y axis by `angle` radians (right-handed).
     #[inline]
     pub fn from_rotation_y(angle: f32) -> Self {
         let (sin, cos) = angle.sin_cos();
@@ -184,7 +196,7 @@ impl Mat3 {
         }
     }
 
-    /// Create a rotation matrix around the Z axis
+    /// Rotation around the Z axis by `angle` radians (right-handed).
     #[inline]
     pub fn from_rotation_z(angle: f32) -> Self {
         let (sin, cos) = angle.sin_cos();
@@ -195,7 +207,7 @@ impl Mat3 {
         }
     }
 
-    /// Create a rotation matrix from axis and angle
+    /// Rotation around `axis` (normalized) by `angle` radians (right-handed).
     #[inline]
     pub fn from_axis_angle(axis: Vec3, angle: f32) -> Self {
         let axis = axis.normalize();
@@ -225,7 +237,7 @@ impl Mat3 {
         }
     }
 
-    /// Create a rotation matrix from a quaternion
+    /// Rotation matrix from a unit quaternion.
     #[inline]
     pub fn from_quat(quat: crate::Quat) -> Self {
         let x = quat.x;
@@ -253,7 +265,7 @@ impl Mat3 {
         }
     }
 
-    /// Create from array (column-major order)
+    /// Build from a 9-element array in column-major order.
     #[inline]
     pub fn from_cols_array(m: &[f32; 9]) -> Self {
         Self {
@@ -263,7 +275,7 @@ impl Mat3 {
         }
     }
 
-    /// Convert to array (column-major order)
+    /// Copy into a 9-element array [col0, col1, col2] in column-major order.
     #[inline]
     pub fn to_cols_array(self) -> [f32; 9] {
         [

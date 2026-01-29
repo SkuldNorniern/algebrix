@@ -16,6 +16,7 @@
 
 use crate::Vec2;
 
+/// 2D signed integer vector (i32). Same layout as [`Vec2`]; use [`as_vec2`](IVec2::as_vec2) to convert to float.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct IVec2 {
     pub x: i32,
@@ -23,13 +24,20 @@ pub struct IVec2 {
 }
 
 impl IVec2 {
+    /// Zero vector (0, 0).
     pub const ZERO: IVec2 = IVec2 { x: 0, y: 0 };
+    /// Vector (1, 1).
     pub const ONE: IVec2 = IVec2 { x: 1, y: 1 };
+    /// Unit vector (1, 0).
     pub const X: IVec2 = IVec2 { x: 1, y: 0 };
+    /// Unit vector (0, 1).
     pub const Y: IVec2 = IVec2 { x: 0, y: 1 };
+    /// Unit vector (-1, 0).
     pub const NEG_X: IVec2 = IVec2 { x: -1, y: 0 };
+    /// Unit vector (0, -1).
     pub const NEG_Y: IVec2 = IVec2 { x: 0, y: -1 };
 
+    /// Build from x, y.
     #[inline(always)]
     pub const fn new(x: i32, y: i32) -> Self {
         Self { x, y }
@@ -45,26 +53,31 @@ impl IVec2 {
         Self { x: self.x.abs(), y: self.y.abs() }
     }
 
+    /// Component-wise minimum.
     #[inline(always)]
     pub fn min(self, other: Self) -> Self {
         Self { x: self.x.min(other.x), y: self.y.min(other.y) }
     }
 
+    /// Component-wise maximum.
     #[inline(always)]
     pub fn max(self, other: Self) -> Self {
         Self { x: self.x.max(other.x), y: self.y.max(other.y) }
     }
 
+    /// Smallest component.
     #[inline(always)]
     pub fn min_element(self) -> i32 {
         self.x.min(self.y)
     }
 
+    /// Largest component.
     #[inline(always)]
     pub fn max_element(self) -> i32 {
         self.x.max(self.y)
     }
 
+    /// Clamp each component to the range [min, max] per axis.
     #[inline(always)]
     pub fn clamp(self, min: Self, max: Self) -> Self {
         Self {
@@ -73,26 +86,31 @@ impl IVec2 {
         }
     }
 
+    /// Convert to float [`Vec2`] (component cast).
     #[inline(always)]
     pub fn as_vec2(self) -> Vec2 {
         Vec2::new(self.x as f32, self.y as f32)
     }
 
+    /// Build from a 2-element array.
     #[inline(always)]
     pub fn from_array(a: [i32; 2]) -> Self {
         Self { x: a[0], y: a[1] }
     }
 
+    /// Copy into a 2-element array [x, y].
     #[inline(always)]
     pub fn to_array(self) -> [i32; 2] {
         [self.x, self.y]
     }
 
+    /// Dot product (x*x + y*y).
     #[inline(always)]
     pub fn dot(self, other: Self) -> i32 {
         self.x * other.x + self.y * other.y
     }
 
+    /// Perpendicular dot product (2D cross): x*other.y - y*other.x.
     #[inline(always)]
     pub fn perp_dot(self, other: Self) -> i32 {
         self.x * other.y - self.y * other.x
