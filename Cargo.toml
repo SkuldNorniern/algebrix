@@ -7,6 +7,10 @@ edition = "2024"
 name = "algebrix"
 path = "src/lib.rs"
 
+[dependencies]
+glam = {version="0.31.0", optional = true}
+nalgebra = {version="0.34.1", optional = true}
+
 [features]
 default = ["std", "simd"]
 std = []
@@ -14,5 +18,5 @@ simd = []  # Auto-detect SIMD
 simd-x86 = []  # Force x86_64 SIMD
 simd-arm = []  # Force ARM SIMD
 scalar-math = []  # Disable SIMD, use scalar only
-
-[dependencies]
+glam-compatibility = ["dep:glam"]
+nalgebra-compatibility = ["dep:nalgebra"]
