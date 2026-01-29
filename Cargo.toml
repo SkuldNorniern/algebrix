@@ -2,6 +2,13 @@
 name = "algebrix"
 version = "0.1.0"
 edition = "2024"
+description = "Vectors, matrices, quaternions, and geometry for game engines; column vectors, optional SIMD."
+documentation = "https://docs.rs/algebrix"
+repository = "https://github.com/SkuldNorniern/algebrix"
+license = "Apache-2.0"
+authors = ["SkuldNorniern <eira@nornity.com>"]
+categories = ["math"]
+keywords = ["math", "vector", "matrix", "quaternion", "geometry"]
 
 [lib]
 name = "algebrix"
