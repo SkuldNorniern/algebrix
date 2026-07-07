@@ -38,10 +38,12 @@ impl Quat {
         w: 1.0,
     };
 
+    #[inline]
     pub const fn new(x: f32, y: f32, z: f32, w: f32) -> Self {
         Self { x, y, z, w }
     }
 
+    #[inline]
     pub const fn from_xyzw(x: f32, y: f32, z: f32, w: f32) -> Self {
         Self { x, y, z, w }
     }
@@ -239,35 +241,22 @@ impl Quat {
         let scale1 = (t * theta).sin() * inv_sin_theta;
 
         let sign = if dot < 0.0 { -1.0 } else { 1.0 };
-        let result = Self {
+        // Exact slerp of unit quaternions is unit length; no re-normalize needed.
+        Self {
             x: scale0 * self.x + scale1 * other.x * sign,
             y: scale0 * self.y + scale1 * other.y * sign,
             z: scale0 * self.z + scale1 * other.z * sign,
             w: scale0 * self.w + scale1 * other.w * sign,
-        };
-
-        result.normalize()
+        }
     }
 
     #[inline]
     pub fn mul_vec3(self, other: Vec3) -> Vec3 {
-        let qx = self.x;
-        let qy = self.y;
-        let qz = self.z;
-        let qw = self.w;
-        let vx = other.x;
-        let vy = other.y;
-        let vz = other.z;
-
-        let tx = 2.0 * (qy * vz - qz * vy);
-        let ty = 2.0 * (qz * vx - qx * vz);
-        let tz = 2.0 * (qx * vy - qy * vx);
-
-        Vec3::new(
-            vx + qw.mul_add(tx, qy.mul_add(tz, -qz * ty)),
-            vy + qw.mul_add(ty, qz.mul_add(tx, -qx * tz)),
-            vz + qw.mul_add(tz, qx.mul_add(ty, -qy * tx)),
-        )
+        // v' = v + w*t + q_xyz x t, with t = 2 * (q_xyz x v).
+        // Expressed through Vec3 ops so the SIMD cross/add/mul paths are used.
+        let q_xyz = Vec3::new(self.x, self.y, self.z);
+        let t = q_xyz.cross(other) * 2.0;
+        other + t * self.w + q_xyz.cross(t)
     }
 
     /// Rotate a vector by this quaternion (alias for mul_vec3)
@@ -533,27 +522,10 @@ impl std::ops::Mul for Quat {
     #[inline]
     fn mul(self, other: Self) -> Self {
         Self {
-            x: self.w.mul_add(
-                other.x,
-                self.x
-                    .mul_add(other.w, self.y.mul_add(other.z, -self.z * other.y)),
-            ),
-            y: self.w.mul_add(
-                other.y,
-                self.y
-                    .mul_add(other.w, self.z.mul_add(other.x, -self.x * other.z)),
-            ),
-            z: self.w.mul_add(
-                other.z,
-                self.z
-                    .mul_add(other.w, self.x.mul_add(other.y, -self.y * other.x)),
-            ),
-            w: self.w.mul_add(
-                other.w,
-                -(self
-                    .x
-                    .mul_add(other.x, self.y.mul_add(other.y, self.z * other.z))),
-            ),
+            x: self.w * other.x + self.x * other.w + self.y * other.z - self.z * other.y,
+            y: self.w * other.y + self.y * other.w + self.z * other.x - self.x * other.z,
+            z: self.w * other.z + self.z * other.w + self.x * other.y - self.y * other.x,
+            w: self.w * other.w - self.x * other.x - self.y * other.y - self.z * other.z,
         }
     }
 }
@@ -665,5 +637,32 @@ mod tests {
         let q2 = Quat::from_axis_angle(Vec3::X, 1.0);
         let result = q1.slerp(q2, 0.5);
         assert!((result.length() - 1.0).abs() < 0.0001);
+    }
+}
+
+impl Default for Quat {
+    #[inline]
+    fn default() -> Self {
+        Self::IDENTITY
+    }
+}
+
+impl std::fmt::Display for Quat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}, {}, {}, {}]", self.x, self.y, self.z, self.w)
+    }
+}
+
+impl From<[f32; 4]> for Quat {
+    #[inline]
+    fn from(a: [f32; 4]) -> Self {
+        Self::from_xyzw(a[0], a[1], a[2], a[3])
+    }
+}
+
+impl From<Quat> for [f32; 4] {
+    #[inline]
+    fn from(q: Quat) -> Self {
+        [q.x, q.y, q.z, q.w]
     }
 }

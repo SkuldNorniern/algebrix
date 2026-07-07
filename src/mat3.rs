@@ -46,6 +46,7 @@ impl Mat3 {
     };
 
     /// Build from three column vectors.
+    #[inline]
     pub const fn new(x_axis: Vec3, y_axis: Vec3, z_axis: Vec3) -> Self {
         Self {
             x_axis,
@@ -55,6 +56,7 @@ impl Mat3 {
     }
 
     /// Same as [`new`](Mat3::new); build from columns.
+    #[inline]
     pub const fn from_cols(x_axis: Vec3, y_axis: Vec3, z_axis: Vec3) -> Self {
         Self {
             x_axis,
@@ -105,18 +107,9 @@ impl Mat3 {
     #[inline]
     pub fn mul_vec3(self, other: Vec3) -> Vec3 {
         Vec3::new(
-            self.x_axis.x.mul_add(
-                other.x,
-                self.y_axis.x.mul_add(other.y, self.z_axis.x * other.z),
-            ),
-            self.x_axis.y.mul_add(
-                other.x,
-                self.y_axis.y.mul_add(other.y, self.z_axis.y * other.z),
-            ),
-            self.x_axis.z.mul_add(
-                other.x,
-                self.y_axis.z.mul_add(other.y, self.z_axis.z * other.z),
-            ),
+            self.x_axis.x * other.x + self.y_axis.x * other.y + self.z_axis.x * other.z,
+            self.x_axis.y * other.x + self.y_axis.y * other.y + self.z_axis.y * other.z,
+            self.x_axis.z * other.x + self.y_axis.z * other.y + self.z_axis.z * other.z,
         )
     }
 
@@ -405,5 +398,12 @@ mod tests {
         assert_eq!(transposed.x_axis.x, m.x_axis.x);
         assert_eq!(transposed.x_axis.y, m.y_axis.x);
         assert_eq!(transposed.y_axis.x, m.x_axis.y);
+    }
+}
+
+impl Default for Mat3 {
+    #[inline]
+    fn default() -> Self {
+        Self::IDENTITY
     }
 }

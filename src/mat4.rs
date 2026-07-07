@@ -66,6 +66,7 @@ impl Mat4 {
         },
     };
 
+    #[inline]
     pub const fn new(x_axis: Vec4, y_axis: Vec4, z_axis: Vec4, w_axis: Vec4) -> Self {
         Self {
             x_axis,
@@ -75,6 +76,7 @@ impl Mat4 {
         }
     }
 
+    #[inline]
     pub const fn from_cols(x_axis: Vec4, y_axis: Vec4, z_axis: Vec4, w_axis: Vec4) -> Self {
         Self {
             x_axis,
@@ -228,9 +230,9 @@ impl Mat4 {
     #[inline]
     pub fn from_scale_rotation_translation(scale: Vec3, rotation: Quat, translation: Vec3) -> Self {
         let mut m = Self::from_quat(rotation);
-        m.x_axis = m.x_axis * scale.x;
-        m.y_axis = m.y_axis * scale.y;
-        m.z_axis = m.z_axis * scale.z;
+        m.x_axis *= scale.x;
+        m.y_axis *= scale.y;
+        m.z_axis *= scale.z;
         m.w_axis = Vec4::new(translation.x, translation.y, translation.z, 1.0);
         m
     }
@@ -353,53 +355,43 @@ impl Mat4 {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
             unsafe {
-                let col0 = _mm_load_ps(&self.x_axis.x);
-                let col1 = _mm_load_ps(&self.y_axis.x);
-                let col2 = _mm_load_ps(&self.z_axis.x);
-                let col3 = _mm_load_ps(&self.w_axis.x);
+                let col0 = self.x_axis.to_simd();
+                let col1 = self.y_axis.to_simd();
+                let col2 = self.z_axis.to_simd();
+                let col3 = self.w_axis.to_simd();
 
                 let tmp0 = _mm_unpacklo_ps(col0, col1);
                 let tmp1 = _mm_unpackhi_ps(col0, col1);
                 let tmp2 = _mm_unpacklo_ps(col2, col3);
                 let tmp3 = _mm_unpackhi_ps(col2, col3);
 
-                let row0 = _mm_movelh_ps(tmp0, tmp2);
-                let row1 = _mm_movehl_ps(tmp2, tmp0);
-                let row2 = _mm_movelh_ps(tmp1, tmp3);
-                let row3 = _mm_movehl_ps(tmp3, tmp1);
-
-                let mut out = Self::IDENTITY;
-                _mm_store_ps(&mut out.x_axis.x, row0);
-                _mm_store_ps(&mut out.y_axis.x, row1);
-                _mm_store_ps(&mut out.z_axis.x, row2);
-                _mm_store_ps(&mut out.w_axis.x, row3);
-                out
+                Self {
+                    x_axis: Vec4::from_simd(_mm_movelh_ps(tmp0, tmp2)),
+                    y_axis: Vec4::from_simd(_mm_movehl_ps(tmp2, tmp0)),
+                    z_axis: Vec4::from_simd(_mm_movelh_ps(tmp1, tmp3)),
+                    w_axis: Vec4::from_simd(_mm_movehl_ps(tmp3, tmp1)),
+                }
             }
         }
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
             unsafe {
-                let col0 = vld1q_f32(&self.x_axis.x);
-                let col1 = vld1q_f32(&self.y_axis.x);
-                let col2 = vld1q_f32(&self.z_axis.x);
-                let col3 = vld1q_f32(&self.w_axis.x);
+                let col0 = self.x_axis.to_simd();
+                let col1 = self.y_axis.to_simd();
+                let col2 = self.z_axis.to_simd();
+                let col3 = self.w_axis.to_simd();
 
                 let tmp0 = vzip1q_f32(col0, col2);
                 let tmp1 = vzip2q_f32(col0, col2);
                 let tmp2 = vzip1q_f32(col1, col3);
                 let tmp3 = vzip2q_f32(col1, col3);
 
-                let row0 = vzip1q_f32(tmp0, tmp2);
-                let row1 = vzip2q_f32(tmp0, tmp2);
-                let row2 = vzip1q_f32(tmp1, tmp3);
-                let row3 = vzip2q_f32(tmp1, tmp3);
-
-                let mut out = Self::IDENTITY;
-                vst1q_f32(&mut out.x_axis.x, row0);
-                vst1q_f32(&mut out.y_axis.x, row1);
-                vst1q_f32(&mut out.z_axis.x, row2);
-                vst1q_f32(&mut out.w_axis.x, row3);
-                out
+                Self {
+                    x_axis: Vec4::from_simd(vzip1q_f32(tmp0, tmp2)),
+                    y_axis: Vec4::from_simd(vzip2q_f32(tmp0, tmp2)),
+                    z_axis: Vec4::from_simd(vzip1q_f32(tmp1, tmp3)),
+                    w_axis: Vec4::from_simd(vzip2q_f32(tmp1, tmp3)),
+                }
             }
         }
         #[cfg(not(any(
@@ -421,42 +413,40 @@ impl Mat4 {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
             unsafe {
-                let col0 = _mm_load_ps(&self.x_axis.x);
-                let col1 = _mm_load_ps(&self.y_axis.x);
-                let col2 = _mm_load_ps(&self.z_axis.x);
-                let col3 = _mm_load_ps(&self.w_axis.x);
+                let col0 = self.x_axis.to_simd();
+                let col1 = self.y_axis.to_simd();
+                let col2 = self.z_axis.to_simd();
+                let col3 = self.w_axis.to_simd();
 
-                let v_x = _mm_set1_ps(other.x);
-                let v_y = _mm_set1_ps(other.y);
-                let v_z = _mm_set1_ps(other.z);
-                let v_w = _mm_set1_ps(other.w);
+                let v = other.to_simd();
+                let v_x = _mm_shuffle_ps(v, v, 0b00_00_00_00);
+                let v_y = _mm_shuffle_ps(v, v, 0b01_01_01_01);
+                let v_z = _mm_shuffle_ps(v, v, 0b10_10_10_10);
+                let v_w = _mm_shuffle_ps(v, v, 0b11_11_11_11);
 
                 let mut res = _mm_mul_ps(col0, v_x);
                 res = _mm_add_ps(res, _mm_mul_ps(col1, v_y));
                 res = _mm_add_ps(res, _mm_mul_ps(col2, v_z));
                 res = _mm_add_ps(res, _mm_mul_ps(col3, v_w));
 
-                let mut out = Vec4::ZERO;
-                _mm_store_ps(&mut out.x, res);
-                out
+                Vec4::from_simd(res)
             }
         }
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
             unsafe {
-                let col0 = vld1q_f32(&self.x_axis.x);
-                let col1 = vld1q_f32(&self.y_axis.x);
-                let col2 = vld1q_f32(&self.z_axis.x);
-                let col3 = vld1q_f32(&self.w_axis.x);
+                let col0 = self.x_axis.to_simd();
+                let col1 = self.y_axis.to_simd();
+                let col2 = self.z_axis.to_simd();
+                let col3 = self.w_axis.to_simd();
 
-                let mut res = vmulq_n_f32(col0, other.x);
-                res = vfmaq_n_f32(res, col1, other.y);
-                res = vfmaq_n_f32(res, col2, other.z);
-                res = vfmaq_n_f32(res, col3, other.w);
+                let v = other.to_simd();
+                let mut res = vmulq_laneq_f32(col0, v, 0);
+                res = vfmaq_laneq_f32(res, col1, v, 1);
+                res = vfmaq_laneq_f32(res, col2, v, 2);
+                res = vfmaq_laneq_f32(res, col3, v, 3);
 
-                let mut out = Vec4::ZERO;
-                vst1q_f32(&mut out.x, res);
-                out
+                Vec4::from_simd(res)
             }
         }
         #[cfg(not(any(
@@ -491,16 +481,23 @@ impl Mat4 {
         Vec3::new(res.x, res.y, res.z)
     }
 
+    /// Multiply two affine matrices (both with last row `0 0 0 1`).
+    /// Skips the w-row terms, so it is faster than `self * other`;
+    /// the result is only correct when both matrices are affine.
     #[inline]
     pub fn mul_affine(self, other: Self) -> Self {
+        let x = self.x_axis;
+        let y = self.y_axis;
+        let z = self.z_axis;
         Self {
-            x_axis: self.mul_vec4(other.x_axis),
-            y_axis: self.mul_vec4(other.y_axis),
-            z_axis: self.mul_vec4(other.z_axis),
-            w_axis: self.mul_vec4(other.w_axis),
+            x_axis: x * other.x_axis.x + y * other.x_axis.y + z * other.x_axis.z,
+            y_axis: x * other.y_axis.x + y * other.y_axis.y + z * other.y_axis.z,
+            z_axis: x * other.z_axis.x + y * other.z_axis.y + z * other.z_axis.z,
+            w_axis: x * other.w_axis.x + y * other.w_axis.y + z * other.w_axis.z + self.w_axis,
         }
     }
 
+    #[inline]
     pub fn to_cols_array(self) -> [f32; 16] {
         [
             self.x_axis.x,
@@ -651,11 +648,89 @@ impl std::ops::Mul for Mat4 {
     type Output = Self;
     #[inline]
     fn mul(self, other: Self) -> Self {
-        Self {
-            x_axis: self.mul_vec4(other.x_axis),
-            y_axis: self.mul_vec4(other.y_axis),
-            z_axis: self.mul_vec4(other.z_axis),
-            w_axis: self.mul_vec4(other.w_axis),
+        #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
+        {
+            unsafe {
+                let col0 = self.x_axis.to_simd();
+                let col1 = self.y_axis.to_simd();
+                let col2 = self.z_axis.to_simd();
+                let col3 = self.w_axis.to_simd();
+
+                #[inline(always)]
+                unsafe fn mul_col(
+                    col0: __m128,
+                    col1: __m128,
+                    col2: __m128,
+                    col3: __m128,
+                    rhs: Vec4,
+                ) -> Vec4 {
+                    unsafe {
+                        let v = rhs.to_simd();
+                        let e0 = _mm_shuffle_ps(v, v, 0b00_00_00_00);
+                        let e1 = _mm_shuffle_ps(v, v, 0b01_01_01_01);
+                        let e2 = _mm_shuffle_ps(v, v, 0b10_10_10_10);
+                        let e3 = _mm_shuffle_ps(v, v, 0b11_11_11_11);
+                        let res = _mm_add_ps(
+                            _mm_add_ps(_mm_mul_ps(col0, e0), _mm_mul_ps(col1, e1)),
+                            _mm_add_ps(_mm_mul_ps(col2, e2), _mm_mul_ps(col3, e3)),
+                        );
+                        Vec4::from_simd(res)
+                    }
+                }
+
+                Self {
+                    x_axis: mul_col(col0, col1, col2, col3, other.x_axis),
+                    y_axis: mul_col(col0, col1, col2, col3, other.y_axis),
+                    z_axis: mul_col(col0, col1, col2, col3, other.z_axis),
+                    w_axis: mul_col(col0, col1, col2, col3, other.w_axis),
+                }
+            }
+        }
+        #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
+        {
+            unsafe {
+                let col0 = self.x_axis.to_simd();
+                let col1 = self.y_axis.to_simd();
+                let col2 = self.z_axis.to_simd();
+                let col3 = self.w_axis.to_simd();
+
+                #[inline(always)]
+                unsafe fn mul_col(
+                    col0: float32x4_t,
+                    col1: float32x4_t,
+                    col2: float32x4_t,
+                    col3: float32x4_t,
+                    rhs: Vec4,
+                ) -> Vec4 {
+                    unsafe {
+                        let v = rhs.to_simd();
+                        let mut res = vmulq_laneq_f32(col0, v, 0);
+                        res = vfmaq_laneq_f32(res, col1, v, 1);
+                        res = vfmaq_laneq_f32(res, col2, v, 2);
+                        res = vfmaq_laneq_f32(res, col3, v, 3);
+                        Vec4::from_simd(res)
+                    }
+                }
+
+                Self {
+                    x_axis: mul_col(col0, col1, col2, col3, other.x_axis),
+                    y_axis: mul_col(col0, col1, col2, col3, other.y_axis),
+                    z_axis: mul_col(col0, col1, col2, col3, other.z_axis),
+                    w_axis: mul_col(col0, col1, col2, col3, other.w_axis),
+                }
+            }
+        }
+        #[cfg(not(any(
+            all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
+            all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm"))
+        )))]
+        {
+            Self {
+                x_axis: self.mul_vec4(other.x_axis),
+                y_axis: self.mul_vec4(other.y_axis),
+                z_axis: self.mul_vec4(other.z_axis),
+                w_axis: self.mul_vec4(other.w_axis),
+            }
         }
     }
 }
@@ -766,5 +841,65 @@ mod tests {
         assert!((decomp_trans.x - translation.x).abs() < 0.0001);
         assert!((decomp_trans.y - translation.y).abs() < 0.0001);
         assert!((decomp_trans.z - translation.z).abs() < 0.0001);
+    }
+}
+
+impl Default for Mat4 {
+    #[inline]
+    fn default() -> Self {
+        Self::IDENTITY
+    }
+}
+
+impl From<[f32; 16]> for Mat4 {
+    #[inline]
+    fn from(a: [f32; 16]) -> Self {
+        Self::from_cols_array(&a)
+    }
+}
+
+impl From<Mat4> for [f32; 16] {
+    #[inline]
+    fn from(m: Mat4) -> Self {
+        m.to_cols_array()
+    }
+}
+
+impl std::ops::Add for Mat4 {
+    type Output = Self;
+    #[inline]
+    fn add(self, other: Self) -> Self {
+        Self {
+            x_axis: self.x_axis + other.x_axis,
+            y_axis: self.y_axis + other.y_axis,
+            z_axis: self.z_axis + other.z_axis,
+            w_axis: self.w_axis + other.w_axis,
+        }
+    }
+}
+
+impl std::ops::Sub for Mat4 {
+    type Output = Self;
+    #[inline]
+    fn sub(self, other: Self) -> Self {
+        Self {
+            x_axis: self.x_axis - other.x_axis,
+            y_axis: self.y_axis - other.y_axis,
+            z_axis: self.z_axis - other.z_axis,
+            w_axis: self.w_axis - other.w_axis,
+        }
+    }
+}
+
+impl std::ops::Mul<f32> for Mat4 {
+    type Output = Self;
+    #[inline]
+    fn mul(self, scalar: f32) -> Self {
+        Self {
+            x_axis: self.x_axis * scalar,
+            y_axis: self.y_axis * scalar,
+            z_axis: self.z_axis * scalar,
+            w_axis: self.w_axis * scalar,
+        }
     }
 }

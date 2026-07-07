@@ -109,13 +109,14 @@ pub fn f32_rsqrt(x: f32) -> f32 {
             let rsqrt_approx = _mm_rsqrt_ss(x_simd);
             let half = _mm_set_ss(0.5);
             let three = _mm_set_ss(3.0);
+            // Newton-Raphson: y' = 0.5 * y * (3 - x * y * y)
             let refined = _mm_mul_ss(
-                rsqrt_approx,
+                _mm_mul_ss(half, rsqrt_approx),
                 _mm_sub_ss(
                     three,
-                    _mm_mul_ps(
-                        _mm_mul_ss(half, x_simd),
-                        _mm_mul_ss(rsqrt_approx, rsqrt_approx),
+                    _mm_mul_ss(
+                        _mm_mul_ss(x_simd, rsqrt_approx),
+                        rsqrt_approx,
                     ),
                 ),
             );

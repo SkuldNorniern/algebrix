@@ -32,6 +32,7 @@ impl Vec2 {
     pub const X: Vec2 = Vec2 { x: 1.0, y: 0.0 };
     pub const Y: Vec2 = Vec2 { x: 0.0, y: 1.0 };
 
+    #[inline]
     pub const fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
@@ -88,13 +89,14 @@ impl Vec2 {
                     let rsqrt_approx = _mm_rsqrt_ss(len_sq_simd);
                     let half = _mm_set_ss(0.5);
                     let three = _mm_set_ss(3.0);
+                    // Newton-Raphson: y' = 0.5 * y * (3 - x * y * y)
                     let refined = _mm_mul_ss(
-                        rsqrt_approx,
+                        _mm_mul_ss(half, rsqrt_approx),
                         _mm_sub_ss(
                             three,
                             _mm_mul_ss(
-                                _mm_mul_ss(half, len_sq_simd),
-                                _mm_mul_ss(rsqrt_approx, rsqrt_approx),
+                                _mm_mul_ss(len_sq_simd, rsqrt_approx),
+                                rsqrt_approx,
                             ),
                         ),
                     );
@@ -515,5 +517,89 @@ mod tests {
             "Fast normalize length should be close to 1.0, got {}",
             len
         );
+    }
+}
+
+impl Default for Vec2 {
+    #[inline]
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
+impl std::fmt::Display for Vec2 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}, {}]", self.x, self.y)
+    }
+}
+
+impl std::ops::Index<usize> for Vec2 {
+    type Output = f32;
+    #[inline]
+    fn index(&self, index: usize) -> &f32 {
+        &self.as_ref()[index]
+    }
+}
+
+impl std::ops::IndexMut<usize> for Vec2 {
+    #[inline]
+    fn index_mut(&mut self, index: usize) -> &mut f32 {
+        &mut self.as_mut()[index]
+    }
+}
+
+impl From<[f32; 2]> for Vec2 {
+    #[inline]
+    fn from(a: [f32; 2]) -> Self {
+        Self::new(a[0], a[1])
+    }
+}
+
+impl From<Vec2> for [f32; 2] {
+    #[inline]
+    fn from(v: Vec2) -> Self {
+        [v.x, v.y]
+    }
+}
+
+impl From<(f32, f32)> for Vec2 {
+    #[inline]
+    fn from(t: (f32, f32)) -> Self {
+        Self::new(t.0, t.1)
+    }
+}
+
+impl std::ops::AddAssign for Vec2 {
+    #[inline]
+    fn add_assign(&mut self, other: Self) {
+        *self = *self + other;
+    }
+}
+
+impl std::ops::SubAssign for Vec2 {
+    #[inline]
+    fn sub_assign(&mut self, other: Self) {
+        *self = *self - other;
+    }
+}
+
+impl std::ops::MulAssign<f32> for Vec2 {
+    #[inline]
+    fn mul_assign(&mut self, scalar: f32) {
+        *self = *self * scalar;
+    }
+}
+
+impl std::ops::DivAssign<f32> for Vec2 {
+    #[inline]
+    fn div_assign(&mut self, scalar: f32) {
+        *self = *self / scalar;
+    }
+}
+
+impl std::iter::Sum for Vec2 {
+    #[inline]
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::ZERO, |a, b| a + b)
     }
 }

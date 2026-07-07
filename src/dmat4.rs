@@ -38,6 +38,7 @@ impl DMat4 {
     };
 
     /// Build from four column vectors (column-major order).
+    #[inline]
     pub const fn from_cols(x: [f64; 4], y: [f64; 4], z: [f64; 4], w: [f64; 4]) -> Self {
         Self {
             x_axis: x,

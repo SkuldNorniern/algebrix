@@ -37,6 +37,36 @@ pub struct Vec4 {
     pub w: f32,
 }
 
+#[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
+impl Vec4 {
+    /// Reinterpret as a SIMD register value. Safe: Vec4 is `repr(C, align(16))`, same layout as `__m128`.
+    #[inline(always)]
+    pub(crate) fn to_simd(self) -> __m128 {
+        unsafe { core::mem::transmute(self) }
+    }
+
+    /// Reinterpret a SIMD register value as a Vec4.
+    #[inline(always)]
+    pub(crate) fn from_simd(v: __m128) -> Self {
+        unsafe { core::mem::transmute(v) }
+    }
+}
+
+#[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
+impl Vec4 {
+    /// Reinterpret as a SIMD register value. Safe: Vec4 is `repr(C, align(16))`, same layout as `float32x4_t`.
+    #[inline(always)]
+    pub(crate) fn to_simd(self) -> float32x4_t {
+        unsafe { core::mem::transmute(self) }
+    }
+
+    /// Reinterpret a SIMD register value as a Vec4.
+    #[inline(always)]
+    pub(crate) fn from_simd(v: float32x4_t) -> Self {
+        unsafe { core::mem::transmute(v) }
+    }
+}
+
 impl Vec4 {
     pub const ZERO: Vec4 = Vec4 {
         x: 0.0,
@@ -51,6 +81,7 @@ impl Vec4 {
         w: 1.0,
     };
 
+    #[inline]
     pub const fn new(x: f32, y: f32, z: f32, w: f32) -> Self {
         Self { x, y, z, w }
     }
@@ -65,9 +96,10 @@ impl Vec4 {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
             unsafe {
-                let v_v = _mm_load_ps(self.as_ref().as_ptr());
+                let v_v = self.to_simd();
                 let mul = _mm_mul_ps(v_v, v_v);
-                let shuf = _mm_movehdup_ps(mul);
+                // SSE2-safe stand-in for _mm_movehdup_ps (duplicate odd lanes).
+                let shuf = _mm_shuffle_ps(mul, mul, 0b11_11_01_01);
                 let sums = _mm_add_ps(mul, shuf);
                 let shuf2 = _mm_movehl_ps(sums, sums);
                 let result = _mm_add_ss(sums, shuf2);
@@ -77,7 +109,7 @@ impl Vec4 {
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
             unsafe {
-                let v_v = vld1q_f32(self.as_ref().as_ptr());
+                let v_v = self.to_simd();
                 let mul = vmulq_f32(v_v, v_v);
                 vaddvq_f32(mul)
             }
@@ -115,7 +147,7 @@ impl Vec4 {
             #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
             {
                 unsafe {
-                    let v_v = _mm_load_ps(self.as_ref().as_ptr());
+                    let v_v = self.to_simd();
                     let v_len_sq = _mm_set1_ps(len_sq);
                     let rsqrt = _mm_rsqrt_ps(v_len_sq);
                     let half = _mm_set1_ps(0.5);
@@ -125,15 +157,13 @@ impl Vec4 {
                     let muls2 = _mm_mul_ps(_mm_mul_ps(v_len_sq, rsqrt), rsqrt);
                     let rsqrt = _mm_mul_ps(_mm_mul_ps(half, rsqrt), _mm_sub_ps(three, muls2));
                     let res = _mm_mul_ps(v_v, rsqrt);
-                    let mut out = Self::ZERO;
-                    _mm_store_ps(out.as_mut().as_mut_ptr(), res);
-                    out
+                    Self::from_simd(res)
                 }
             }
             #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
             {
                 unsafe {
-                    let v_v = vld1q_f32(self.as_ref().as_ptr());
+                    let v_v = self.to_simd();
                     let v_len_sq = vdupq_n_f32(len_sq);
                     let rsqrt = vrsqrteq_f32(v_len_sq);
                     let muls = vmulq_f32(rsqrt, rsqrt);
@@ -141,9 +171,7 @@ impl Vec4 {
                     let muls2 = vmulq_f32(rsqrt, rsqrt);
                     let rsqrt = vmulq_f32(rsqrt, vrsqrtsq_f32(v_len_sq, muls2));
                     let res = vmulq_f32(v_v, rsqrt);
-                    let mut out = Self::ZERO;
-                    vst1q_f32(out.as_mut().as_mut_ptr(), res);
-                    out
+                    Self::from_simd(res)
                 }
             }
             #[cfg(not(any(
@@ -169,10 +197,11 @@ impl Vec4 {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
             unsafe {
-                let v_a = _mm_load_ps(self.as_ref().as_ptr());
-                let v_b = _mm_load_ps(other.as_ref().as_ptr());
+                let v_a = self.to_simd();
+                let v_b = other.to_simd();
                 let mul = _mm_mul_ps(v_a, v_b);
-                let shuf = _mm_movehdup_ps(mul);
+                // SSE2-safe stand-in for _mm_movehdup_ps (duplicate odd lanes).
+                let shuf = _mm_shuffle_ps(mul, mul, 0b11_11_01_01);
                 let sums = _mm_add_ps(mul, shuf);
                 let shuf2 = _mm_movehl_ps(sums, sums);
                 let result = _mm_add_ss(sums, shuf2);
@@ -182,8 +211,8 @@ impl Vec4 {
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
             unsafe {
-                let v_a = vld1q_f32(self.as_ref().as_ptr());
-                let v_b = vld1q_f32(other.as_ref().as_ptr());
+                let v_a = self.to_simd();
+                let v_b = other.to_simd();
                 let mul = vmulq_f32(v_a, v_b);
                 vaddvq_f32(mul)
             }
@@ -212,23 +241,19 @@ impl Vec4 {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
             unsafe {
-                let v_a = _mm_load_ps(self.as_ref().as_ptr());
-                let v_b = _mm_load_ps(other.as_ref().as_ptr());
+                let v_a = self.to_simd();
+                let v_b = other.to_simd();
                 let res = _mm_min_ps(v_a, v_b);
-                let mut out = Self::ZERO;
-                _mm_store_ps(out.as_mut().as_mut_ptr(), res);
-                out
+                Self::from_simd(res)
             }
         }
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
             unsafe {
-                let v_a = vld1q_f32(self.as_ref().as_ptr());
-                let v_b = vld1q_f32(other.as_ref().as_ptr());
+                let v_a = self.to_simd();
+                let v_b = other.to_simd();
                 let res = vminq_f32(v_a, v_b);
-                let mut out = Self::ZERO;
-                vst1q_f32(out.as_mut().as_mut_ptr(), res);
-                out
+                Self::from_simd(res)
             }
         }
         #[cfg(not(any(
@@ -250,23 +275,19 @@ impl Vec4 {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
             unsafe {
-                let v_a = _mm_load_ps(self.as_ref().as_ptr());
-                let v_b = _mm_load_ps(other.as_ref().as_ptr());
+                let v_a = self.to_simd();
+                let v_b = other.to_simd();
                 let res = _mm_max_ps(v_a, v_b);
-                let mut out = Self::ZERO;
-                _mm_store_ps(out.as_mut().as_mut_ptr(), res);
-                out
+                Self::from_simd(res)
             }
         }
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
             unsafe {
-                let v_a = vld1q_f32(self.as_ref().as_ptr());
-                let v_b = vld1q_f32(other.as_ref().as_ptr());
+                let v_a = self.to_simd();
+                let v_b = other.to_simd();
                 let res = vmaxq_f32(v_a, v_b);
-                let mut out = Self::ZERO;
-                vst1q_f32(out.as_mut().as_mut_ptr(), res);
-                out
+                Self::from_simd(res)
             }
         }
         #[cfg(not(any(
@@ -295,22 +316,18 @@ impl Vec4 {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
             unsafe {
-                let v_v = _mm_load_ps(self.as_ref().as_ptr());
+                let v_v = self.to_simd();
                 let mask = _mm_set1_ps(-0.0);
                 let res = _mm_andnot_ps(mask, v_v);
-                let mut out = Self::ZERO;
-                _mm_store_ps(out.as_mut().as_mut_ptr(), res);
-                out
+                Self::from_simd(res)
             }
         }
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
             unsafe {
-                let v_v = vld1q_f32(self.as_ref().as_ptr());
+                let v_v = self.to_simd();
                 let res = vabsq_f32(v_v);
-                let mut out = Self::ZERO;
-                vst1q_f32(out.as_mut().as_mut_ptr(), res);
-                out
+                Self::from_simd(res)
             }
         }
         #[cfg(not(any(
@@ -450,23 +467,19 @@ impl std::ops::Add for Vec4 {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
             unsafe {
-                let v_a = _mm_load_ps(self.as_ref().as_ptr());
-                let v_b = _mm_load_ps(other.as_ref().as_ptr());
+                let v_a = self.to_simd();
+                let v_b = other.to_simd();
                 let res = _mm_add_ps(v_a, v_b);
-                let mut out = Self::ZERO;
-                _mm_store_ps(out.as_mut().as_mut_ptr(), res);
-                out
+                Self::from_simd(res)
             }
         }
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
             unsafe {
-                let v_a = vld1q_f32(self.as_ref().as_ptr());
-                let v_b = vld1q_f32(other.as_ref().as_ptr());
+                let v_a = self.to_simd();
+                let v_b = other.to_simd();
                 let res = vaddq_f32(v_a, v_b);
-                let mut out = Self::ZERO;
-                vst1q_f32(out.as_mut().as_mut_ptr(), res);
-                out
+                Self::from_simd(res)
             }
         }
         #[cfg(not(any(
@@ -491,23 +504,19 @@ impl std::ops::Sub for Vec4 {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
             unsafe {
-                let v_a = _mm_load_ps(self.as_ref().as_ptr());
-                let v_b = _mm_load_ps(other.as_ref().as_ptr());
+                let v_a = self.to_simd();
+                let v_b = other.to_simd();
                 let res = _mm_sub_ps(v_a, v_b);
-                let mut out = Self::ZERO;
-                _mm_store_ps(out.as_mut().as_mut_ptr(), res);
-                out
+                Self::from_simd(res)
             }
         }
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
             unsafe {
-                let v_a = vld1q_f32(self.as_ref().as_ptr());
-                let v_b = vld1q_f32(other.as_ref().as_ptr());
+                let v_a = self.to_simd();
+                let v_b = other.to_simd();
                 let res = vsubq_f32(v_a, v_b);
-                let mut out = Self::ZERO;
-                vst1q_f32(out.as_mut().as_mut_ptr(), res);
-                out
+                Self::from_simd(res)
             }
         }
         #[cfg(not(any(
@@ -545,23 +554,19 @@ impl std::ops::Mul<Vec4> for Vec4 {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
             unsafe {
-                let v_a = _mm_load_ps(self.as_ref().as_ptr());
-                let v_b = _mm_load_ps(other.as_ref().as_ptr());
+                let v_a = self.to_simd();
+                let v_b = other.to_simd();
                 let res = _mm_mul_ps(v_a, v_b);
-                let mut out = Self::ZERO;
-                _mm_store_ps(out.as_mut().as_mut_ptr(), res);
-                out
+                Self::from_simd(res)
             }
         }
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
             unsafe {
-                let v_a = vld1q_f32(self.as_ref().as_ptr());
-                let v_b = vld1q_f32(other.as_ref().as_ptr());
+                let v_a = self.to_simd();
+                let v_b = other.to_simd();
                 let res = vmulq_f32(v_a, v_b);
-                let mut out = Self::ZERO;
-                vst1q_f32(out.as_mut().as_mut_ptr(), res);
-                out
+                Self::from_simd(res)
             }
         }
         #[cfg(not(any(
@@ -613,23 +618,19 @@ impl std::ops::Div<Vec4> for Vec4 {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
             unsafe {
-                let v_a = _mm_load_ps(self.as_ref().as_ptr());
-                let v_b = _mm_load_ps(other.as_ref().as_ptr());
+                let v_a = self.to_simd();
+                let v_b = other.to_simd();
                 let res = _mm_div_ps(v_a, v_b);
-                let mut out = Self::ZERO;
-                _mm_store_ps(out.as_mut().as_mut_ptr(), res);
-                out
+                Self::from_simd(res)
             }
         }
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
             unsafe {
-                let v_a = vld1q_f32(self.as_ref().as_ptr());
-                let v_b = vld1q_f32(other.as_ref().as_ptr());
+                let v_a = self.to_simd();
+                let v_b = other.to_simd();
                 let res = vdivq_f32(v_a, v_b);
-                let mut out = Self::ZERO;
-                vst1q_f32(out.as_mut().as_mut_ptr(), res);
-                out
+                Self::from_simd(res)
             }
         }
         #[cfg(not(any(
@@ -703,5 +704,89 @@ mod tests {
             "Fast normalize length should be close to 1.0, got {}",
             len
         );
+    }
+}
+
+impl Default for Vec4 {
+    #[inline]
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
+impl std::fmt::Display for Vec4 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}, {}, {}, {}]", self.x, self.y, self.z, self.w)
+    }
+}
+
+impl std::ops::Index<usize> for Vec4 {
+    type Output = f32;
+    #[inline]
+    fn index(&self, index: usize) -> &f32 {
+        &self.as_ref()[index]
+    }
+}
+
+impl std::ops::IndexMut<usize> for Vec4 {
+    #[inline]
+    fn index_mut(&mut self, index: usize) -> &mut f32 {
+        &mut self.as_mut()[index]
+    }
+}
+
+impl From<[f32; 4]> for Vec4 {
+    #[inline]
+    fn from(a: [f32; 4]) -> Self {
+        Self::new(a[0], a[1], a[2], a[3])
+    }
+}
+
+impl From<Vec4> for [f32; 4] {
+    #[inline]
+    fn from(v: Vec4) -> Self {
+        v.to_array()
+    }
+}
+
+impl From<(f32, f32, f32, f32)> for Vec4 {
+    #[inline]
+    fn from(t: (f32, f32, f32, f32)) -> Self {
+        Self::new(t.0, t.1, t.2, t.3)
+    }
+}
+
+impl std::ops::AddAssign for Vec4 {
+    #[inline]
+    fn add_assign(&mut self, other: Self) {
+        *self = *self + other;
+    }
+}
+
+impl std::ops::SubAssign for Vec4 {
+    #[inline]
+    fn sub_assign(&mut self, other: Self) {
+        *self = *self - other;
+    }
+}
+
+impl std::ops::MulAssign<f32> for Vec4 {
+    #[inline]
+    fn mul_assign(&mut self, scalar: f32) {
+        *self = *self * scalar;
+    }
+}
+
+impl std::ops::DivAssign<f32> for Vec4 {
+    #[inline]
+    fn div_assign(&mut self, scalar: f32) {
+        *self = *self / scalar;
+    }
+}
+
+impl std::iter::Sum for Vec4 {
+    #[inline]
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::ZERO, |a, b| a + b)
     }
 }

@@ -34,6 +34,7 @@ impl DQuat {
     };
 
     /// Build from components (x, y, z, w). Usually you want [`from_axis_angle`](DQuat::from_axis_angle) for rotations.
+    #[inline]
     pub const fn new(x: f64, y: f64, z: f64, w: f64) -> Self {
         Self { x, y, z, w }
     }
