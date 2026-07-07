@@ -66,7 +66,8 @@ impl Mat3 {
     }
 
     /// Diagonal matrix with (diagonal.x, diagonal.y, diagonal.z) on the diagonal.
-    pub const fn from_diagonal(diagonal: Vec3) -> Self {
+    #[inline]
+    pub fn from_diagonal(diagonal: Vec3) -> Self {
         Self {
             x_axis: Vec3::new(diagonal.x, 0.0, 0.0),
             y_axis: Vec3::new(0.0, diagonal.y, 0.0),

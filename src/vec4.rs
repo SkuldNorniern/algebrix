@@ -3,6 +3,9 @@
 //! Column vectors; multiply by Mat4 on the left. Use `.truncate()` to drop w and get Vec3.
 //! [`normalize_fast`](Vec4::normalize_fast) uses rsqrt when the SIMD feature is on.
 //!
+//! With the SIMD feature the vector is stored directly in a SIMD register type
+//! (`__m128` / `float32x4_t`); `x`/`y`/`z`/`w` remain accessible through `Deref`.
+//!
 //! # Example
 //!
 //! ```rust
@@ -20,16 +23,28 @@
 //! assert!(mid.x > 0.0 && mid.y > 0.0);
 //! ```
 
-use crate::utils;
-
 #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
 use std::arch::x86_64::*;
 
 #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
 use std::arch::aarch64::*;
 
+#[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
+#[derive(Clone, Copy)]
+#[repr(transparent)]
+pub struct Vec4(pub(crate) __m128);
+
+#[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
+#[derive(Clone, Copy)]
+#[repr(transparent)]
+pub struct Vec4(pub(crate) float32x4_t);
+
+#[cfg(not(any(
+    all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
+    all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm"))
+)))]
+#[derive(Clone, Copy)]
 #[repr(C, align(16))]
-#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Vec4 {
     pub x: f32,
     pub y: f32,
@@ -37,53 +52,121 @@ pub struct Vec4 {
     pub w: f32,
 }
 
+/// Field-access view of a [`Vec4`]. With SIMD storage `Vec4` derefs to this,
+/// so `v.x` etc. keep working.
+#[repr(C, align(16))]
+pub struct XYZW {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+    pub w: f32,
+}
+
+#[cfg(any(
+    all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
+    all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm"))
+))]
+impl std::ops::Deref for Vec4 {
+    type Target = XYZW;
+    #[inline(always)]
+    fn deref(&self) -> &XYZW {
+        // Same size and alignment; XYZW is repr(C, align(16)).
+        unsafe { &*(self as *const Self as *const XYZW) }
+    }
+}
+
+#[cfg(any(
+    all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
+    all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm"))
+))]
+impl std::ops::DerefMut for Vec4 {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut XYZW {
+        unsafe { &mut *(self as *mut Self as *mut XYZW) }
+    }
+}
+
+/// Used for const construction of the SIMD-backed Vec4.
+#[cfg(any(
+    all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
+    all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm"))
+))]
+#[repr(C)]
+union UnionCast {
+    a: [f32; 4],
+    v: Vec4,
+}
+
 #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
 impl Vec4 {
-    /// Reinterpret as a SIMD register value. Safe: Vec4 is `repr(C, align(16))`, same layout as `__m128`.
+    /// The underlying SIMD register value.
     #[inline(always)]
     pub(crate) fn to_simd(self) -> __m128 {
-        unsafe { core::mem::transmute(self) }
+        self.0
     }
 
-    /// Reinterpret a SIMD register value as a Vec4.
+    /// Wrap a SIMD register value.
     #[inline(always)]
     pub(crate) fn from_simd(v: __m128) -> Self {
-        unsafe { core::mem::transmute(v) }
+        Self(v)
     }
 }
 
 #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
 impl Vec4 {
-    /// Reinterpret as a SIMD register value. Safe: Vec4 is `repr(C, align(16))`, same layout as `float32x4_t`.
+    /// The underlying SIMD register value.
     #[inline(always)]
     pub(crate) fn to_simd(self) -> float32x4_t {
-        unsafe { core::mem::transmute(self) }
+        self.0
     }
 
-    /// Reinterpret a SIMD register value as a Vec4.
+    /// Wrap a SIMD register value.
     #[inline(always)]
     pub(crate) fn from_simd(v: float32x4_t) -> Self {
-        unsafe { core::mem::transmute(v) }
+        Self(v)
     }
 }
 
 impl Vec4 {
-    pub const ZERO: Vec4 = Vec4 {
-        x: 0.0,
-        y: 0.0,
-        z: 0.0,
-        w: 0.0,
-    };
-    pub const ONE: Vec4 = Vec4 {
-        x: 1.0,
-        y: 1.0,
-        z: 1.0,
-        w: 1.0,
-    };
+    pub const ZERO: Vec4 = Vec4::new(0.0, 0.0, 0.0, 0.0);
+    pub const ONE: Vec4 = Vec4::new(1.0, 1.0, 1.0, 1.0);
 
-    #[inline]
+    #[cfg(any(
+        all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
+        all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm"))
+    ))]
+    #[inline(always)]
+    pub const fn new(x: f32, y: f32, z: f32, w: f32) -> Self {
+        unsafe { UnionCast { a: [x, y, z, w] }.v }
+    }
+
+    #[cfg(not(any(
+        all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
+        all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm"))
+    )))]
+    #[inline(always)]
     pub const fn new(x: f32, y: f32, z: f32, w: f32) -> Self {
         Self { x, y, z, w }
+    }
+
+    /// All components set to the same value.
+    #[inline(always)]
+    pub fn splat(value: f32) -> Self {
+        #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
+        {
+            unsafe { Self(_mm_set1_ps(value)) }
+        }
+        #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
+        {
+            unsafe { Self(vdupq_n_f32(value)) }
+        }
+        #[cfg(not(any(
+            all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
+            all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm"))
+        )))]
+        {
+            Self::new(value, value, value, value)
+        }
     }
 
     #[inline]
@@ -93,47 +176,14 @@ impl Vec4 {
 
     #[inline]
     pub fn length_squared(self) -> f32 {
-        #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
-        {
-            unsafe {
-                let v_v = self.to_simd();
-                let mul = _mm_mul_ps(v_v, v_v);
-                // SSE2-safe stand-in for _mm_movehdup_ps (duplicate odd lanes).
-                let shuf = _mm_shuffle_ps(mul, mul, 0b11_11_01_01);
-                let sums = _mm_add_ps(mul, shuf);
-                let shuf2 = _mm_movehl_ps(sums, sums);
-                let result = _mm_add_ss(sums, shuf2);
-                _mm_cvtss_f32(result)
-            }
-        }
-        #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
-        {
-            unsafe {
-                let v_v = self.to_simd();
-                let mul = vmulq_f32(v_v, v_v);
-                vaddvq_f32(mul)
-            }
-        }
-        #[cfg(not(any(
-            all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
-            all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm"))
-        )))]
-        {
-            self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w
-        }
+        self.dot(self)
     }
 
     #[inline]
     pub fn normalize(self) -> Self {
         let len_sq = self.length_squared();
         if len_sq > 0.0 {
-            let inv_len = len_sq.sqrt().recip();
-            Self {
-                x: self.x * inv_len,
-                y: self.y * inv_len,
-                z: self.z * inv_len,
-                w: self.w * inv_len,
-            }
+            self * len_sq.sqrt().recip()
         } else {
             Self::ZERO
         }
@@ -147,31 +197,28 @@ impl Vec4 {
             #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
             {
                 unsafe {
-                    let v_v = self.to_simd();
                     let v_len_sq = _mm_set1_ps(len_sq);
                     let rsqrt = _mm_rsqrt_ps(v_len_sq);
                     let half = _mm_set1_ps(0.5);
                     let three = _mm_set1_ps(3.0);
+                    // Two Newton-Raphson steps: y' = 0.5 * y * (3 - x * y * y)
                     let muls = _mm_mul_ps(_mm_mul_ps(v_len_sq, rsqrt), rsqrt);
                     let rsqrt = _mm_mul_ps(_mm_mul_ps(half, rsqrt), _mm_sub_ps(three, muls));
                     let muls2 = _mm_mul_ps(_mm_mul_ps(v_len_sq, rsqrt), rsqrt);
                     let rsqrt = _mm_mul_ps(_mm_mul_ps(half, rsqrt), _mm_sub_ps(three, muls2));
-                    let res = _mm_mul_ps(v_v, rsqrt);
-                    Self::from_simd(res)
+                    Self(_mm_mul_ps(self.0, rsqrt))
                 }
             }
             #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
             {
                 unsafe {
-                    let v_v = self.to_simd();
                     let v_len_sq = vdupq_n_f32(len_sq);
                     let rsqrt = vrsqrteq_f32(v_len_sq);
                     let muls = vmulq_f32(rsqrt, rsqrt);
                     let rsqrt = vmulq_f32(rsqrt, vrsqrtsq_f32(v_len_sq, muls));
                     let muls2 = vmulq_f32(rsqrt, rsqrt);
                     let rsqrt = vmulq_f32(rsqrt, vrsqrtsq_f32(v_len_sq, muls2));
-                    let res = vmulq_f32(v_v, rsqrt);
-                    Self::from_simd(res)
+                    Self(vmulq_f32(self.0, rsqrt))
                 }
             }
             #[cfg(not(any(
@@ -179,13 +226,7 @@ impl Vec4 {
                 all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm"))
             )))]
             {
-                let inv_len = len_sq.sqrt().recip();
-                Self::new(
-                    self.x * inv_len,
-                    self.y * inv_len,
-                    self.z * inv_len,
-                    self.w * inv_len,
-                )
+                self * len_sq.sqrt().recip()
             }
         } else {
             Self::ZERO
@@ -197,25 +238,17 @@ impl Vec4 {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
             unsafe {
-                let v_a = self.to_simd();
-                let v_b = other.to_simd();
-                let mul = _mm_mul_ps(v_a, v_b);
+                let mul = _mm_mul_ps(self.0, other.0);
                 // SSE2-safe stand-in for _mm_movehdup_ps (duplicate odd lanes).
                 let shuf = _mm_shuffle_ps(mul, mul, 0b11_11_01_01);
                 let sums = _mm_add_ps(mul, shuf);
                 let shuf2 = _mm_movehl_ps(sums, sums);
-                let result = _mm_add_ss(sums, shuf2);
-                _mm_cvtss_f32(result)
+                _mm_cvtss_f32(_mm_add_ss(sums, shuf2))
             }
         }
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
-            unsafe {
-                let v_a = self.to_simd();
-                let v_b = other.to_simd();
-                let mul = vmulq_f32(v_a, v_b);
-                vaddvq_f32(mul)
-            }
+            unsafe { vaddvq_f32(vmulq_f32(self.0, other.0)) }
         }
         #[cfg(not(any(
             all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
@@ -228,33 +261,18 @@ impl Vec4 {
 
     #[inline]
     pub fn lerp(self, other: Self, t: f32) -> Self {
-        Self {
-            x: utils::lerp(self.x, other.x, t),
-            y: utils::lerp(self.y, other.y, t),
-            z: utils::lerp(self.z, other.z, t),
-            w: utils::lerp(self.w, other.w, t),
-        }
+        self + (other - self) * t
     }
 
     #[inline]
     pub fn min(self, other: Self) -> Self {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
-            unsafe {
-                let v_a = self.to_simd();
-                let v_b = other.to_simd();
-                let res = _mm_min_ps(v_a, v_b);
-                Self::from_simd(res)
-            }
+            unsafe { Self(_mm_min_ps(self.0, other.0)) }
         }
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
-            unsafe {
-                let v_a = self.to_simd();
-                let v_b = other.to_simd();
-                let res = vminq_f32(v_a, v_b);
-                Self::from_simd(res)
-            }
+            unsafe { Self(vminq_f32(self.0, other.0)) }
         }
         #[cfg(not(any(
             all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
@@ -274,21 +292,11 @@ impl Vec4 {
     pub fn max(self, other: Self) -> Self {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
-            unsafe {
-                let v_a = self.to_simd();
-                let v_b = other.to_simd();
-                let res = _mm_max_ps(v_a, v_b);
-                Self::from_simd(res)
-            }
+            unsafe { Self(_mm_max_ps(self.0, other.0)) }
         }
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
-            unsafe {
-                let v_a = self.to_simd();
-                let v_b = other.to_simd();
-                let res = vmaxq_f32(v_a, v_b);
-                Self::from_simd(res)
-            }
+            unsafe { Self(vmaxq_f32(self.0, other.0)) }
         }
         #[cfg(not(any(
             all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
@@ -304,31 +312,16 @@ impl Vec4 {
         }
     }
 
-    /// All components set to the same value.
-    #[inline(always)]
-    pub fn splat(value: f32) -> Self {
-        Self { x: value, y: value, z: value, w: value }
-    }
-
     /// Component-wise absolute value
     #[inline(always)]
     pub fn abs(self) -> Self {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
-            unsafe {
-                let v_v = self.to_simd();
-                let mask = _mm_set1_ps(-0.0);
-                let res = _mm_andnot_ps(mask, v_v);
-                Self::from_simd(res)
-            }
+            unsafe { Self(_mm_andnot_ps(_mm_set1_ps(-0.0), self.0)) }
         }
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
-            unsafe {
-                let v_v = self.to_simd();
-                let res = vabsq_f32(v_v);
-                Self::from_simd(res)
-            }
+            unsafe { Self(vabsq_f32(self.0)) }
         }
         #[cfg(not(any(
             all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
@@ -366,12 +359,7 @@ impl Vec4 {
     /// Component-wise clamp
     #[inline(always)]
     pub fn clamp(self, min: Self, max: Self) -> Self {
-        Self::new(
-            self.x.clamp(min.x, max.x),
-            self.y.clamp(min.y, max.y),
-            self.z.clamp(min.z, max.z),
-            self.w.clamp(min.w, max.w),
-        )
+        self.max(min).min(max)
     }
 
     /// Truncate to Vec3 (drop w component)
@@ -395,10 +383,7 @@ impl Vec4 {
     /// Approximate equality with epsilon
     #[inline]
     pub fn abs_diff_eq(self, other: Self, epsilon: f32) -> bool {
-        (self.x - other.x).abs() <= epsilon
-            && (self.y - other.y).abs() <= epsilon
-            && (self.z - other.z).abs() <= epsilon
-            && (self.w - other.w).abs() <= epsilon
+        (self - other).abs().max_element() <= epsilon
     }
 
     /// Create from array
@@ -446,6 +431,24 @@ impl Vec4 {
     }
 }
 
+impl std::fmt::Debug for Vec4 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Vec4")
+            .field("x", &self.x)
+            .field("y", &self.y)
+            .field("z", &self.z)
+            .field("w", &self.w)
+            .finish()
+    }
+}
+
+impl PartialEq for Vec4 {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.x == other.x && self.y == other.y && self.z == other.z && self.w == other.w
+    }
+}
+
 impl std::convert::AsRef<[f32; 4]> for Vec4 {
     #[inline(always)]
     fn as_ref(&self) -> &[f32; 4] {
@@ -466,21 +469,11 @@ impl std::ops::Add for Vec4 {
     fn add(self, other: Self) -> Self {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
-            unsafe {
-                let v_a = self.to_simd();
-                let v_b = other.to_simd();
-                let res = _mm_add_ps(v_a, v_b);
-                Self::from_simd(res)
-            }
+            unsafe { Self(_mm_add_ps(self.0, other.0)) }
         }
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
-            unsafe {
-                let v_a = self.to_simd();
-                let v_b = other.to_simd();
-                let res = vaddq_f32(v_a, v_b);
-                Self::from_simd(res)
-            }
+            unsafe { Self(vaddq_f32(self.0, other.0)) }
         }
         #[cfg(not(any(
             all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
@@ -503,21 +496,11 @@ impl std::ops::Sub for Vec4 {
     fn sub(self, other: Self) -> Self {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
-            unsafe {
-                let v_a = self.to_simd();
-                let v_b = other.to_simd();
-                let res = _mm_sub_ps(v_a, v_b);
-                Self::from_simd(res)
-            }
+            unsafe { Self(_mm_sub_ps(self.0, other.0)) }
         }
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
-            unsafe {
-                let v_a = self.to_simd();
-                let v_b = other.to_simd();
-                let res = vsubq_f32(v_a, v_b);
-                Self::from_simd(res)
-            }
+            unsafe { Self(vsubq_f32(self.0, other.0)) }
         }
         #[cfg(not(any(
             all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
@@ -538,11 +521,25 @@ impl std::ops::Mul<f32> for Vec4 {
     type Output = Self;
     #[inline]
     fn mul(self, scalar: f32) -> Self {
-        Self {
-            x: self.x * scalar,
-            y: self.y * scalar,
-            z: self.z * scalar,
-            w: self.w * scalar,
+        #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
+        {
+            unsafe { Self(_mm_mul_ps(self.0, _mm_set1_ps(scalar))) }
+        }
+        #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
+        {
+            unsafe { Self(vmulq_n_f32(self.0, scalar)) }
+        }
+        #[cfg(not(any(
+            all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
+            all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm"))
+        )))]
+        {
+            Self::new(
+                self.x * scalar,
+                self.y * scalar,
+                self.z * scalar,
+                self.w * scalar,
+            )
         }
     }
 }
@@ -553,21 +550,11 @@ impl std::ops::Mul<Vec4> for Vec4 {
     fn mul(self, other: Self) -> Self {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
-            unsafe {
-                let v_a = self.to_simd();
-                let v_b = other.to_simd();
-                let res = _mm_mul_ps(v_a, v_b);
-                Self::from_simd(res)
-            }
+            unsafe { Self(_mm_mul_ps(self.0, other.0)) }
         }
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
-            unsafe {
-                let v_a = self.to_simd();
-                let v_b = other.to_simd();
-                let res = vmulq_f32(v_a, v_b);
-                Self::from_simd(res)
-            }
+            unsafe { Self(vmulq_f32(self.0, other.0)) }
         }
         #[cfg(not(any(
             all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
@@ -588,26 +575,18 @@ impl std::ops::Mul<Vec4> for f32 {
     type Output = Vec4;
     #[inline]
     fn mul(self, vec: Vec4) -> Vec4 {
-        Vec4 {
-            x: self * vec.x,
-            y: self * vec.y,
-            z: self * vec.z,
-            w: self * vec.w,
-        }
+        vec * self
     }
 }
 
 impl std::ops::Div<f32> for Vec4 {
     type Output = Self;
     #[inline]
+    // Multiplying by the reciprocal is intentional: one divide + four mults
+    // beats four divides, and matches the previous behavior.
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn div(self, scalar: f32) -> Self {
-        let inv = scalar.recip();
-        Self {
-            x: self.x * inv,
-            y: self.y * inv,
-            z: self.z * inv,
-            w: self.w * inv,
-        }
+        self * scalar.recip()
     }
 }
 
@@ -617,21 +596,11 @@ impl std::ops::Div<Vec4> for Vec4 {
     fn div(self, other: Self) -> Self {
         #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
         {
-            unsafe {
-                let v_a = self.to_simd();
-                let v_b = other.to_simd();
-                let res = _mm_div_ps(v_a, v_b);
-                Self::from_simd(res)
-            }
+            unsafe { Self(_mm_div_ps(self.0, other.0)) }
         }
         #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
         {
-            unsafe {
-                let v_a = self.to_simd();
-                let v_b = other.to_simd();
-                let res = vdivq_f32(v_a, v_b);
-                Self::from_simd(res)
-            }
+            unsafe { Self(vdivq_f32(self.0, other.0)) }
         }
         #[cfg(not(any(
             all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
@@ -652,58 +621,21 @@ impl std::ops::Neg for Vec4 {
     type Output = Self;
     #[inline]
     fn neg(self) -> Self {
-        Self {
-            x: -self.x,
-            y: -self.y,
-            z: -self.z,
-            w: -self.w,
+        #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
+        {
+            unsafe { Self(_mm_xor_ps(self.0, _mm_set1_ps(-0.0))) }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_vec4_new() {
-        let v = Vec4::new(1.0, 2.0, 3.0, 4.0);
-        assert_eq!(v.x, 1.0);
-        assert_eq!(v.y, 2.0);
-        assert_eq!(v.z, 3.0);
-        assert_eq!(v.w, 4.0);
-    }
-
-    #[test]
-    fn test_vec4_length() {
-        let v = Vec4::new(2.0, 0.0, 0.0, 0.0);
-        assert!((v.length() - 2.0).abs() < 0.0001);
-    }
-
-    #[test]
-    fn test_vec4_normalize() {
-        let v = Vec4::new(2.0, 0.0, 0.0, 0.0);
-        let normalized = v.normalize();
-        assert!((normalized.length() - 1.0).abs() < 0.0001);
-    }
-
-    #[test]
-    fn test_vec4_dot() {
-        let v1 = Vec4::new(1.0, 2.0, 3.0, 4.0);
-        let v2 = Vec4::new(5.0, 6.0, 7.0, 8.0);
-        assert_eq!(v1.dot(v2), 70.0);
-    }
-
-    #[test]
-    fn test_vec4_normalize_fast() {
-        let v = Vec4::new(2.0, 0.0, 0.0, 0.0);
-        let normalized = v.normalize_fast();
-        let len = normalized.length();
-        assert!(
-            (len - 1.0).abs() < 0.01,
-            "Fast normalize length should be close to 1.0, got {}",
-            len
-        );
+        #[cfg(all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm")))]
+        {
+            unsafe { Self(vnegq_f32(self.0)) }
+        }
+        #[cfg(not(any(
+            all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")),
+            all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm"))
+        )))]
+        {
+            Self::new(-self.x, -self.y, -self.z, -self.w)
+        }
     }
 }
 
@@ -788,5 +720,67 @@ impl std::iter::Sum for Vec4 {
     #[inline]
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::ZERO, |a, b| a + b)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_vec4_new() {
+        let v = Vec4::new(1.0, 2.0, 3.0, 4.0);
+        assert_eq!(v.x, 1.0);
+        assert_eq!(v.y, 2.0);
+        assert_eq!(v.z, 3.0);
+        assert_eq!(v.w, 4.0);
+    }
+
+    #[test]
+    fn test_vec4_length() {
+        let v = Vec4::new(2.0, 0.0, 0.0, 0.0);
+        assert!((v.length() - 2.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_vec4_normalize() {
+        let v = Vec4::new(2.0, 0.0, 0.0, 0.0);
+        let normalized = v.normalize();
+        assert!((normalized.length() - 1.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_vec4_dot() {
+        let v1 = Vec4::new(1.0, 2.0, 3.0, 4.0);
+        let v2 = Vec4::new(5.0, 6.0, 7.0, 8.0);
+        assert_eq!(v1.dot(v2), 70.0);
+    }
+
+    #[test]
+    fn test_vec4_normalize_fast() {
+        let v = Vec4::new(2.0, 0.0, 0.0, 0.0);
+        let normalized = v.normalize_fast();
+        let len = normalized.length();
+        assert!(
+            (len - 1.0).abs() < 0.01,
+            "Fast normalize length should be close to 1.0, got {}",
+            len
+        );
+    }
+
+    #[test]
+    fn test_vec4_const_new() {
+        const V: Vec4 = Vec4::new(1.0, 2.0, 3.0, 4.0);
+        assert_eq!(V.to_array(), [1.0, 2.0, 3.0, 4.0]);
+        assert_eq!(Vec4::ZERO.to_array(), [0.0; 4]);
+        assert_eq!(Vec4::ONE.to_array(), [1.0; 4]);
+    }
+
+    #[test]
+    fn test_vec4_field_write() {
+        let mut v = Vec4::ZERO;
+        v.x = 1.0;
+        v.w = 4.0;
+        assert_eq!(v, Vec4::new(1.0, 0.0, 0.0, 4.0));
     }
 }

@@ -40,30 +40,10 @@ pub struct Mat4 {
 
 impl Mat4 {
     pub const IDENTITY: Mat4 = Mat4 {
-        x_axis: Vec4 {
-            x: 1.0,
-            y: 0.0,
-            z: 0.0,
-            w: 0.0,
-        },
-        y_axis: Vec4 {
-            x: 0.0,
-            y: 1.0,
-            z: 0.0,
-            w: 0.0,
-        },
-        z_axis: Vec4 {
-            x: 0.0,
-            y: 0.0,
-            z: 1.0,
-            w: 0.0,
-        },
-        w_axis: Vec4 {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-            w: 1.0,
-        },
+        x_axis: Vec4::new(1.0, 0.0, 0.0, 0.0),
+        y_axis: Vec4::new(0.0, 1.0, 0.0, 0.0),
+        z_axis: Vec4::new(0.0, 0.0, 1.0, 0.0),
+        w_axis: Vec4::new(0.0, 0.0, 0.0, 1.0),
     };
 
     #[inline]
@@ -87,7 +67,7 @@ impl Mat4 {
     }
 
     #[inline]
-    pub const fn from_translation(translation: Vec3) -> Self {
+    pub fn from_translation(translation: Vec3) -> Self {
         Self {
             x_axis: Vec4::new(1.0, 0.0, 0.0, 0.0),
             y_axis: Vec4::new(0.0, 1.0, 0.0, 0.0),
@@ -107,10 +87,8 @@ impl Mat4 {
 
     #[inline]
     pub fn from_quat(quat: Quat) -> Self {
-        let x = quat.x;
-        let y = quat.y;
-        let z = quat.z;
-        let w = quat.w;
+        // One spill to an array instead of four separate lane extracts.
+        let [x, y, z, w] = quat.to_array();
 
         let x2 = x + x;
         let y2 = y + y;
@@ -823,6 +801,25 @@ mod tests {
 
         for i in 0..16 {
             assert!((result.as_ref()[i] - Mat4::IDENTITY.as_ref()[i]).abs() < 0.0001);
+        }
+    }
+
+    #[test]
+    fn test_mat4_inverse_roundtrip_srt() {
+        let m = Mat4::from_scale_rotation_translation(
+            Vec3::new(1.5, 2.0, 0.5),
+            Quat::from_axis_angle(Vec3::new(1.0, 2.0, 3.0), 0.7),
+            Vec3::new(4.0, -5.0, 6.0),
+        );
+        let inv = m.inverse().unwrap();
+        let result = m * inv;
+        for i in 0..16 {
+            assert!(
+                (result.as_ref()[i] - Mat4::IDENTITY.as_ref()[i]).abs() < 1e-4,
+                "element {} = {}",
+                i,
+                result.as_ref()[i]
+            );
         }
     }
 

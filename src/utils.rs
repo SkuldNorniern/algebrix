@@ -99,6 +99,28 @@ pub fn max(a: f32, b: f32) -> f32 {
     if a > b { a } else { b }
 }
 
+/// Approximate acos using a 7-degree minimax polynomial (same approach as
+/// DirectXMath's `XMScalarACos`). Max absolute error is about 1e-7 radians —
+/// far cheaper than libm `acos` and accurate enough for interpolation weights.
+#[inline]
+pub fn acos_approx(v: f32) -> f32 {
+    let nonnegative = v >= 0.0;
+    let x = v.abs();
+    let root = (1.0 - x).max(0.0).sqrt();
+
+    let mut result = -0.001_262_491_1_f32;
+    result = result * x + 0.006_670_09;
+    result = result * x - 0.017_088_126;
+    result = result * x + 0.030_891_88;
+    result = result * x - 0.050_174_305;
+    result = result * x + 0.088_978_99;
+    result = result * x - 0.214_598_8;
+    result = result * x + consts::FRAC_PI_2;
+    result *= root;
+
+    if nonnegative { result } else { PI - result }
+}
+
 /// Approximate reciprocal square root. Uses SIMD when the feature is on.
 #[inline]
 pub fn f32_rsqrt(x: f32) -> f32 {
@@ -151,6 +173,23 @@ mod tests {
     #[test]
     fn test_lerp() {
         assert!((lerp(0.0, 10.0, 0.5) - 5.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_acos_approx() {
+        let mut v = -1.0f32;
+        while v <= 1.0 {
+            let exact = v.acos();
+            let approx = acos_approx(v);
+            assert!(
+                (exact - approx).abs() < 1e-5,
+                "acos_approx({}) = {}, expected {}",
+                v,
+                approx,
+                exact
+            );
+            v += 0.001;
+        }
     }
 
     #[test]

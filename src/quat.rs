@@ -20,32 +20,60 @@
 //! assert!(mid.w > 0.9);
 //! ```
 
-use crate::{Vec3, utils};
+use crate::vec4::XYZW;
+use crate::{Vec3, Vec4, utils};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Quat {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-    pub w: f32,
+/// Stored as a [`Vec4`], so with the SIMD feature it lives in a SIMD register.
+/// `x`/`y`/`z`/`w` are accessible through `Deref`.
+#[derive(Clone, Copy)]
+#[repr(transparent)]
+pub struct Quat(pub(crate) Vec4);
+
+impl std::ops::Deref for Quat {
+    type Target = XYZW;
+    #[inline(always)]
+    fn deref(&self) -> &XYZW {
+        // Quat is repr(transparent) over Vec4; XYZW matches its layout.
+        unsafe { &*(self as *const Self as *const XYZW) }
+    }
+}
+
+impl std::ops::DerefMut for Quat {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut XYZW {
+        unsafe { &mut *(self as *mut Self as *mut XYZW) }
+    }
+}
+
+impl std::fmt::Debug for Quat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Quat")
+            .field("x", &self.x)
+            .field("y", &self.y)
+            .field("z", &self.z)
+            .field("w", &self.w)
+            .finish()
+    }
+}
+
+impl PartialEq for Quat {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
 }
 
 impl Quat {
-    pub const IDENTITY: Quat = Quat {
-        x: 0.0,
-        y: 0.0,
-        z: 0.0,
-        w: 1.0,
-    };
+    pub const IDENTITY: Quat = Quat::new(0.0, 0.0, 0.0, 1.0);
 
     #[inline]
     pub const fn new(x: f32, y: f32, z: f32, w: f32) -> Self {
-        Self { x, y, z, w }
+        Self(Vec4::new(x, y, z, w))
     }
 
     #[inline]
     pub const fn from_xyzw(x: f32, y: f32, z: f32, w: f32) -> Self {
-        Self { x, y, z, w }
+        Self(Vec4::new(x, y, z, w))
     }
 
     /// Rotation around `axis` (will be normalized) by `angle` radians. Right-hand rule.
@@ -64,12 +92,7 @@ impl Quat {
         let s = half_angle.sin();
         let c = half_angle.cos();
         let normalized_axis = axis.normalize();
-        Self {
-            x: normalized_axis.x * s,
-            y: normalized_axis.y * s,
-            z: normalized_axis.z * s,
-            w: c,
-        }
+        Self::new(normalized_axis.x * s, normalized_axis.y * s, normalized_axis.z * s, c)
     }
 
     /// Quaternion from a 3x3 rotation matrix. Use when you have a Mat3 and need a Quat.
@@ -79,39 +102,19 @@ impl Quat {
         if trace > 0.0 {
             let s = (trace + 1.0).sqrt() * 2.0;
             let inv_s = s.recip();
-            Self {
-                x: (mat.y_axis.z - mat.z_axis.y) * inv_s,
-                y: (mat.z_axis.x - mat.x_axis.z) * inv_s,
-                z: (mat.x_axis.y - mat.y_axis.x) * inv_s,
-                w: s * 0.25,
-            }
+            Self::new((mat.y_axis.z - mat.z_axis.y) * inv_s, (mat.z_axis.x - mat.x_axis.z) * inv_s, (mat.x_axis.y - mat.y_axis.x) * inv_s, s * 0.25)
         } else if mat.x_axis.x > mat.y_axis.y && mat.x_axis.x > mat.z_axis.z {
             let s = (1.0 + mat.x_axis.x - mat.y_axis.y - mat.z_axis.z).sqrt() * 2.0;
             let inv_s = s.recip();
-            Self {
-                x: s * 0.25,
-                y: (mat.x_axis.y + mat.y_axis.x) * inv_s,
-                z: (mat.z_axis.x + mat.x_axis.z) * inv_s,
-                w: (mat.y_axis.z - mat.z_axis.y) * inv_s,
-            }
+            Self::new(s * 0.25, (mat.x_axis.y + mat.y_axis.x) * inv_s, (mat.z_axis.x + mat.x_axis.z) * inv_s, (mat.y_axis.z - mat.z_axis.y) * inv_s)
         } else if mat.y_axis.y > mat.z_axis.z {
             let s = (1.0 + mat.y_axis.y - mat.x_axis.x - mat.z_axis.z).sqrt() * 2.0;
             let inv_s = s.recip();
-            Self {
-                x: (mat.x_axis.y + mat.y_axis.x) * inv_s,
-                y: s * 0.25,
-                z: (mat.y_axis.z + mat.z_axis.y) * inv_s,
-                w: (mat.z_axis.x - mat.x_axis.z) * inv_s,
-            }
+            Self::new((mat.x_axis.y + mat.y_axis.x) * inv_s, s * 0.25, (mat.y_axis.z + mat.z_axis.y) * inv_s, (mat.z_axis.x - mat.x_axis.z) * inv_s)
         } else {
             let s = (1.0 + mat.z_axis.z - mat.x_axis.x - mat.y_axis.y).sqrt() * 2.0;
             let inv_s = s.recip();
-            Self {
-                x: (mat.z_axis.x + mat.x_axis.z) * inv_s,
-                y: (mat.y_axis.z + mat.z_axis.y) * inv_s,
-                z: s * 0.25,
-                w: (mat.x_axis.y - mat.y_axis.x) * inv_s,
-            }
+            Self::new((mat.z_axis.x + mat.x_axis.z) * inv_s, (mat.y_axis.z + mat.z_axis.y) * inv_s, s * 0.25, (mat.x_axis.y - mat.y_axis.x) * inv_s)
         }
     }
 
@@ -150,12 +153,7 @@ impl Quat {
         let sz = half_z.sin();
         let cz = half_z.cos();
 
-        Self {
-            x: sx * cy * cz - cx * sy * sz,
-            y: cx * sy * cz + sx * cy * sz,
-            z: cx * cy * sz - sx * sy * cz,
-            w: cx * cy * cz + sx * sy * sz,
-        }
+        Self::new(sx * cy * cz - cx * sy * sz, cx * sy * cz + sx * cy * sz, cx * cy * sz - sx * sy * cz, cx * cy * cz + sx * sy * sz)
     }
 
     #[inline]
@@ -165,20 +163,14 @@ impl Quat {
 
     #[inline]
     pub fn length_squared(self) -> f32 {
-        self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w
+        self.0.dot(self.0)
     }
 
     #[inline]
     pub fn normalize(self) -> Self {
         let len_sq = self.length_squared();
         if len_sq > 0.0 {
-            let inv_len = len_sq.sqrt().recip();
-            Self {
-                x: self.x * inv_len,
-                y: self.y * inv_len,
-                z: self.z * inv_len,
-                w: self.w * inv_len,
-            }
+            Self(self.0 * len_sq.sqrt().recip())
         } else {
             Self::IDENTITY
         }
@@ -186,12 +178,7 @@ impl Quat {
 
     #[inline]
     pub fn conjugate(self) -> Self {
-        Self {
-            x: -self.x,
-            y: -self.y,
-            z: -self.z,
-            w: self.w,
-        }
+        Self::new(-self.x, -self.y, -self.z, self.w)
     }
 
     #[inline]
@@ -199,12 +186,7 @@ impl Quat {
         let len_sq = self.length_squared();
         if len_sq > 0.0 {
             let inv_len_sq = len_sq.recip();
-            Self {
-                x: -self.x * inv_len_sq,
-                y: -self.y * inv_len_sq,
-                z: -self.z * inv_len_sq,
-                w: self.w * inv_len_sq,
-            }
+            Self::new(-self.x * inv_len_sq, -self.y * inv_len_sq, -self.z * inv_len_sq, self.w * inv_len_sq)
         } else {
             Self::IDENTITY
         }
@@ -214,7 +196,7 @@ impl Quat {
     /// close (avoids acos/sin) and full slerp otherwise.
     #[inline]
     pub fn slerp(self, other: Self, t: f32) -> Self {
-        let dot = self.x * other.x + self.y * other.y + self.z * other.z + self.w * other.w;
+        let dot = self.dot(other);
         let abs_dot = dot.abs();
 
         if abs_dot >= 1.0 {
@@ -224,16 +206,11 @@ impl Quat {
         const DOT_THRESHOLD: f32 = 0.9995;
         if abs_dot > DOT_THRESHOLD {
             let sign = if dot < 0.0 { -1.0 } else { 1.0 };
-            let result = Self {
-                x: self.x + (other.x * sign - self.x) * t,
-                y: self.y + (other.y * sign - self.y) * t,
-                z: self.z + (other.z * sign - self.z) * t,
-                w: self.w + (other.w * sign - self.w) * t,
-            };
+            let result = Self(self.0 + (other.0 * sign - self.0) * t);
             return result.normalize();
         }
 
-        let theta = abs_dot.acos();
+        let theta = utils::acos_approx(abs_dot);
         let sin_theta = theta.sin();
         let inv_sin_theta = sin_theta.recip();
         let t_inv = 1.0 - t;
@@ -242,12 +219,7 @@ impl Quat {
 
         let sign = if dot < 0.0 { -1.0 } else { 1.0 };
         // Exact slerp of unit quaternions is unit length; no re-normalize needed.
-        Self {
-            x: scale0 * self.x + scale1 * other.x * sign,
-            y: scale0 * self.y + scale1 * other.y * sign,
-            z: scale0 * self.z + scale1 * other.z * sign,
-            w: scale0 * self.w + scale1 * other.w * sign,
-        }
+        Self(self.0 * scale0 + other.0 * (scale1 * sign))
     }
 
     #[inline]
@@ -348,7 +320,7 @@ impl Quat {
     /// Dot product of two quaternions
     #[inline(always)]
     pub fn dot(self, other: Self) -> f32 {
-        self.x * other.x + self.y * other.y + self.z * other.z + self.w * other.w
+        self.0.dot(other.0)
     }
 
     /// Normalized linear interpolation (faster than slerp for close quaternions)
@@ -356,18 +328,13 @@ impl Quat {
     pub fn nlerp(self, other: Self, t: f32) -> Self {
         let dot = self.dot(other);
         let sign = if dot < 0.0 { -1.0 } else { 1.0 };
-        Self {
-            x: self.x + (other.x * sign - self.x) * t,
-            y: self.y + (other.y * sign - self.y) * t,
-            z: self.z + (other.z * sign - self.z) * t,
-            w: self.w + (other.w * sign - self.w) * t,
-        }.normalize()
+        Self(self.0 + (other.0 * sign - self.0) * t).normalize()
     }
 
     /// Create from array [x, y, z, w]
     #[inline(always)]
     pub fn from_array(a: [f32; 4]) -> Self {
-        Self { x: a[0], y: a[1], z: a[2], w: a[3] }
+        Self::new(a[0], a[1], a[2], a[3])
     }
 
     /// Convert to array [x, y, z, w]
@@ -521,12 +488,7 @@ impl std::ops::Mul for Quat {
     type Output = Self;
     #[inline]
     fn mul(self, other: Self) -> Self {
-        Self {
-            x: self.w * other.x + self.x * other.w + self.y * other.z - self.z * other.y,
-            y: self.w * other.y + self.y * other.w + self.z * other.x - self.x * other.z,
-            z: self.w * other.z + self.z * other.w + self.x * other.y - self.y * other.x,
-            w: self.w * other.w - self.x * other.x - self.y * other.y - self.z * other.z,
-        }
+        Self::new(self.w * other.x + self.x * other.w + self.y * other.z - self.z * other.y, self.w * other.y + self.y * other.w + self.z * other.x - self.x * other.z, self.w * other.z + self.z * other.w + self.x * other.y - self.y * other.x, self.w * other.w - self.x * other.x - self.y * other.y - self.z * other.z)
     }
 }
 
@@ -542,12 +504,7 @@ impl std::ops::Mul<f32> for Quat {
     type Output = Quat;
     #[inline]
     fn mul(self, scalar: f32) -> Quat {
-        Quat {
-            x: self.x * scalar,
-            y: self.y * scalar,
-            z: self.z * scalar,
-            w: self.w * scalar,
-        }
+        Quat(self.0 * scalar)
     }
 }
 
@@ -555,12 +512,7 @@ impl std::ops::Add for Quat {
     type Output = Quat;
     #[inline]
     fn add(self, other: Quat) -> Quat {
-        Quat {
-            x: self.x + other.x,
-            y: self.y + other.y,
-            z: self.z + other.z,
-            w: self.w + other.w,
-        }
+        Quat(self.0 + other.0)
     }
 }
 
@@ -568,12 +520,7 @@ impl std::ops::Sub for Quat {
     type Output = Quat;
     #[inline]
     fn sub(self, other: Quat) -> Quat {
-        Quat {
-            x: self.x - other.x,
-            y: self.y - other.y,
-            z: self.z - other.z,
-            w: self.w - other.w,
-        }
+        Quat(self.0 - other.0)
     }
 }
 
@@ -581,12 +528,7 @@ impl std::ops::Neg for Quat {
     type Output = Quat;
     #[inline]
     fn neg(self) -> Quat {
-        Quat {
-            x: -self.x,
-            y: -self.y,
-            z: -self.z,
-            w: -self.w,
-        }
+        Quat(-self.0)
     }
 }
 
