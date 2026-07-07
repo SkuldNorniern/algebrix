@@ -26,3 +26,11 @@ simd-arm = []  # Force ARM SIMD
 scalar-math = []  # Disable SIMD, use scalar only
 glam-compatibility = ["dep:glam"]
 nalgebra-compatibility = ["dep:nalgebra"]
+
+[dev-dependencies]
+criterion = "0.5"
+glam = "0.31"
+
+[[bench]]
+name = "math"
+harness = false
