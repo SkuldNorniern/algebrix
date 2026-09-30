@@ -95,6 +95,80 @@ impl Quat {
         Self::new(normalized_axis.x * s, normalized_axis.y * s, normalized_axis.z * s, c)
     }
 
+    /// Rotation around +X by `angle` radians.
+    #[inline]
+    pub fn from_rotation_x(angle: f32) -> Self {
+        let (s, c) = (angle * 0.5).sin_cos();
+        Self::new(s, 0.0, 0.0, c)
+    }
+
+    /// Rotation around +Y by `angle` radians.
+    #[inline]
+    pub fn from_rotation_y(angle: f32) -> Self {
+        let (s, c) = (angle * 0.5).sin_cos();
+        Self::new(0.0, s, 0.0, c)
+    }
+
+    /// Rotation around +Z by `angle` radians.
+    #[inline]
+    pub fn from_rotation_z(angle: f32) -> Self {
+        let (s, c) = (angle * 0.5).sin_cos();
+        Self::new(0.0, 0.0, s, c)
+    }
+
+    /// Rotation from a rotation vector: direction is the axis, length is the angle in radians.
+    /// Zero vector gives identity.
+    #[inline]
+    pub fn from_scaled_axis(v: Vec3) -> Self {
+        let angle = v.length();
+        if angle < 1e-8 {
+            // first order, keeps tiny rotations instead of snapping to identity
+            return Self::new(v.x * 0.5, v.y * 0.5, v.z * 0.5, 1.0).normalize();
+        }
+        let (s, c) = (angle * 0.5).sin_cos();
+        let k = s / angle;
+        Self::new(v.x * k, v.y * k, v.z * k, c)
+    }
+
+    /// Rotation vector of this rotation, angle in `[0, pi]`. Inverse of [`from_scaled_axis`](Quat::from_scaled_axis).
+    #[inline]
+    pub fn to_scaled_axis(self) -> Vec3 {
+        // q and -q are the same rotation, take the short way
+        let q = if self.w < 0.0 { -self.normalize() } else { self.normalize() };
+        let xyz = Vec3::new(q.x, q.y, q.z);
+        let sin_half = xyz.length();
+        if sin_half < 1e-8 {
+            return xyz * 2.0;
+        }
+        let angle = 2.0 * sin_half.atan2(q.w);
+        xyz * (angle / sin_half)
+    }
+
+    /// Angle in radians of the rotation that takes `self` to `other`, in `[0, pi]`.
+    #[inline]
+    pub fn angle_between(self, other: Self) -> f32 {
+        // atan2 of the relative rotation, acos(dot) loses precision near zero
+        let d = self.conjugate() * other;
+        let sin_half = Vec3::new(d.x, d.y, d.z).length();
+        2.0 * sin_half.atan2(d.w.abs())
+    }
+
+    /// True when every component differs by at most `epsilon`. `q` and `-q` count as different.
+    #[inline]
+    pub fn abs_diff_eq(self, other: Self, epsilon: f32) -> bool {
+        self.0.abs_diff_eq(other.0, epsilon)
+    }
+
+    #[inline]
+    pub fn is_finite(self) -> bool {
+        self.0.is_finite()
+    }
+
+    #[inline]
+    pub fn is_nan(self) -> bool {
+        self.0.is_nan()
+    }
+
     /// Quaternion from a 3x3 rotation matrix. Use when you have a Mat3 and need a Quat.
     #[inline]
     pub fn from_mat3(mat: &crate::Mat3) -> Self {
@@ -488,6 +562,35 @@ impl std::ops::Mul for Quat {
     type Output = Self;
     #[inline]
     fn mul(self, other: Self) -> Self {
+        #[cfg(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86")))]
+        {
+            // a * b = a.w*b + a.x*[bw,-bz,by,-bx] + a.y*[bz,bw,-bx,-by] + a.z*[-by,bx,bw,-bz]
+            use std::arch::x86_64::*;
+            unsafe {
+                let a = (self.0).0;
+                let b = (other.0).0;
+                let b_wzyx = _mm_shuffle_ps(b, b, 0b00_01_10_11);
+                let b_zwxy = _mm_shuffle_ps(b, b, 0b01_00_11_10);
+                let b_yxwz = _mm_shuffle_ps(b, b, 0b10_11_00_01);
+                let t0 = _mm_mul_ps(_mm_shuffle_ps(a, a, 0b11_11_11_11), b);
+                let t1 = _mm_mul_ps(_mm_mul_ps(_mm_shuffle_ps(a, a, 0b00_00_00_00), b_wzyx), _mm_setr_ps(1.0, -1.0, 1.0, -1.0));
+                let t2 = _mm_mul_ps(_mm_mul_ps(_mm_shuffle_ps(a, a, 0b01_01_01_01), b_zwxy), _mm_setr_ps(1.0, 1.0, -1.0, -1.0));
+                let t3 = _mm_mul_ps(_mm_mul_ps(_mm_shuffle_ps(a, a, 0b10_10_10_10), b_yxwz), _mm_setr_ps(-1.0, 1.0, 1.0, -1.0));
+                Self(Vec4(_mm_add_ps(_mm_add_ps(t0, t1), _mm_add_ps(t2, t3))))
+            }
+        }
+        #[cfg(not(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86"))))]
+        {
+            self.mul_scalar(other)
+        }
+    }
+}
+
+impl Quat {
+    /// Hamilton product written out per lane. Reference for the SIMD path.
+    #[inline]
+    #[cfg_attr(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86"), not(test)), allow(dead_code))]
+    fn mul_scalar(self, other: Self) -> Self {
         Self::new(self.w * other.x + self.x * other.w + self.y * other.z - self.z * other.y, self.w * other.y + self.y * other.w + self.z * other.x - self.x * other.z, self.w * other.z + self.z * other.w + self.x * other.y - self.y * other.x, self.w * other.w - self.x * other.x - self.y * other.y - self.z * other.z)
     }
 }
@@ -571,6 +674,71 @@ mod tests {
         let q1 = Quat::IDENTITY;
         let q2 = Quat::IDENTITY;
         assert_eq!(q1 * q2, Quat::IDENTITY);
+    }
+
+    fn quats() -> Vec<Quat> {
+        // fixed pseudo random set, no rand dependency
+        let mut seed = 0x2545_f491_u32;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 17;
+            seed ^= seed << 5;
+            (seed as f32 / u32::MAX as f32) * 4.0 - 2.0
+        };
+        (0..256).map(|_| Quat::new(next(), next(), next(), next())).collect()
+    }
+
+    #[test]
+    fn test_quat_mul_matches_scalar() {
+        let qs = quats();
+        for pair in qs.windows(2) {
+            let (a, b) = (pair[0], pair[1]);
+            assert!((a * b).abs_diff_eq(a.mul_scalar(b), 1e-5), "{a} * {b}");
+        }
+    }
+
+    #[test]
+    fn test_quat_mul_composes_rotations() {
+        let q = Quat::from_rotation_z(0.3) * Quat::from_rotation_x(1.1);
+        let v = Vec3::new(0.2, -0.7, 1.5);
+        let expected = Quat::from_rotation_z(0.3) * (Quat::from_rotation_x(1.1) * v);
+        assert!((q * v).abs_diff_eq(expected, 1e-5));
+    }
+
+    #[test]
+    fn test_quat_from_rotation_axes() {
+        let angle = 0.7;
+        assert!(Quat::from_rotation_x(angle).abs_diff_eq(Quat::from_axis_angle(Vec3::X, angle), 1e-6));
+        assert!(Quat::from_rotation_y(angle).abs_diff_eq(Quat::from_axis_angle(Vec3::Y, angle), 1e-6));
+        assert!(Quat::from_rotation_z(angle).abs_diff_eq(Quat::from_axis_angle(Vec3::Z, angle), 1e-6));
+    }
+
+    #[test]
+    fn test_quat_scaled_axis_round_trip() {
+        for q in quats() {
+            let q = q.normalize();
+            let back = Quat::from_scaled_axis(q.to_scaled_axis());
+            assert!(back.angle_between(q) < 1e-3, "{q} -> {back}");
+            assert!(q.to_scaled_axis().length() <= std::f32::consts::PI + 1e-5);
+        }
+        let v = Vec3::new(0.0, 0.0, 1e-9);
+        assert!(Quat::from_scaled_axis(v).to_scaled_axis().abs_diff_eq(v, 1e-12));
+        assert_eq!(Quat::from_scaled_axis(Vec3::ZERO), Quat::IDENTITY);
+    }
+
+    #[test]
+    fn test_quat_angle_between() {
+        let a = Quat::from_rotation_y(0.2);
+        let b = Quat::from_rotation_y(0.9);
+        assert!((a.angle_between(b) - 0.7).abs() < 1e-4);
+        assert!(a.angle_between(-a) < 1e-3);
+    }
+
+    #[test]
+    fn test_quat_finite() {
+        assert!(Quat::IDENTITY.is_finite());
+        assert!(Quat::new(f32::NAN, 0.0, 0.0, 1.0).is_nan());
+        assert!(!Quat::new(f32::INFINITY, 0.0, 0.0, 1.0).is_finite());
     }
 
     #[test]
