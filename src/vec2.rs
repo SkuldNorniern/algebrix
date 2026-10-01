@@ -66,6 +66,18 @@ impl Vec2 {
         }
     }
 
+    /// Normalizes, or returns `fallback` when the length is zero or not
+    /// finite (too short or broken to give a direction).
+    #[inline]
+    pub fn normalize_or(self, fallback: Self) -> Self {
+        let rcp = self.length().recip();
+        if rcp.is_finite() && rcp > 0.0 {
+            self * rcp
+        } else {
+            fallback
+        }
+    }
+
     /// Normalize using rsqrt. Slightly less accurate than [`normalize`](Self::normalize) but faster; use for directions where exact length 1 is not required.
     ///
     /// # Example
@@ -94,10 +106,7 @@ impl Vec2 {
                         _mm_mul_ss(half, rsqrt_approx),
                         _mm_sub_ss(
                             three,
-                            _mm_mul_ss(
-                                _mm_mul_ss(len_sq_simd, rsqrt_approx),
-                                rsqrt_approx,
-                            ),
+                            _mm_mul_ss(_mm_mul_ss(len_sq_simd, rsqrt_approx), rsqrt_approx),
                         ),
                     );
                     let inv_len = _mm_cvtss_f32(refined);
@@ -171,7 +180,10 @@ impl Vec2 {
     /// Perpendicular vector: rotate 90 degrees counter-clockwise in the XY plane. For (x, y) returns (-y, x).
     #[inline(always)]
     pub fn perp(self) -> Self {
-        Self { x: -self.y, y: self.x }
+        Self {
+            x: -self.y,
+            y: self.x,
+        }
     }
 
     /// Perpendicular dot product (2D cross product)
@@ -463,6 +475,24 @@ impl std::ops::Neg for Vec2 {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn normalize_or_falls_back_only_without_a_direction() {
+        let v = Vec2::new(3.0, 4.0);
+        assert!((v.normalize_or(Vec2::new(1.0, 0.0)).length() - 1.0).abs() < 1e-6);
+        assert_eq!(
+            Vec2::ZERO.normalize_or(Vec2::new(1.0, 0.0)),
+            Vec2::new(1.0, 0.0)
+        );
+        assert_eq!(
+            Vec2::splat(f32::INFINITY).normalize_or(Vec2::new(1.0, 0.0)),
+            Vec2::new(1.0, 0.0)
+        );
+        assert_eq!(
+            Vec2::splat(f32::NAN).normalize_or(Vec2::new(1.0, 0.0)),
+            Vec2::new(1.0, 0.0)
+        );
+    }
     use super::*;
 
     #[test]

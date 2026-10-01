@@ -189,6 +189,18 @@ impl Vec4 {
         }
     }
 
+    /// Normalizes, or returns `fallback` when the length is zero or not
+    /// finite (too short or broken to give a direction).
+    #[inline]
+    pub fn normalize_or(self, fallback: Self) -> Self {
+        let rcp = self.length().recip();
+        if rcp.is_finite() && rcp > 0.0 {
+            self * rcp
+        } else {
+            fallback
+        }
+    }
+
     /// Normalize using rsqrt approximation. Less accurate than `normalize()` but faster; uses SIMD when the feature is on.
     #[inline]
     pub fn normalize_fast(self) -> Self {
@@ -335,13 +347,23 @@ impl Vec4 {
     /// Component-wise reciprocal
     #[inline(always)]
     pub fn recip(self) -> Self {
-        Self::new(self.x.recip(), self.y.recip(), self.z.recip(), self.w.recip())
+        Self::new(
+            self.x.recip(),
+            self.y.recip(),
+            self.z.recip(),
+            self.w.recip(),
+        )
     }
 
     /// Component-wise signum
     #[inline(always)]
     pub fn signum(self) -> Self {
-        Self::new(self.x.signum(), self.y.signum(), self.z.signum(), self.w.signum())
+        Self::new(
+            self.x.signum(),
+            self.y.signum(),
+            self.z.signum(),
+            self.w.signum(),
+        )
     }
 
     /// Minimum element
@@ -725,6 +747,24 @@ impl std::iter::Sum for Vec4 {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn normalize_or_falls_back_only_without_a_direction() {
+        let v = Vec4::new(0.0, 0.0, 3.0, 4.0);
+        assert!((v.normalize_or(Vec4::new(1.0, 0.0, 0.0, 0.0)).length() - 1.0).abs() < 1e-6);
+        assert_eq!(
+            Vec4::ZERO.normalize_or(Vec4::new(1.0, 0.0, 0.0, 0.0)),
+            Vec4::new(1.0, 0.0, 0.0, 0.0)
+        );
+        assert_eq!(
+            Vec4::splat(f32::INFINITY).normalize_or(Vec4::new(1.0, 0.0, 0.0, 0.0)),
+            Vec4::new(1.0, 0.0, 0.0, 0.0)
+        );
+        assert_eq!(
+            Vec4::splat(f32::NAN).normalize_or(Vec4::new(1.0, 0.0, 0.0, 0.0)),
+            Vec4::new(1.0, 0.0, 0.0, 0.0)
+        );
+    }
     use super::*;
 
     #[test]

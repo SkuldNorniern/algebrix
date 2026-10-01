@@ -43,6 +43,15 @@ fn vec3_ops(c: &mut Criterion) {
     g.bench_function("glam", |bench| bench.iter(|| black_box(ga).normalize()));
     g.finish();
 
+    let mut g = c.benchmark_group("vec3_normalize_or");
+    g.bench_function("algebrix", |bench| {
+        bench.iter(|| black_box(a).normalize_or(Vec3::X))
+    });
+    g.bench_function("glam", |bench| {
+        bench.iter(|| black_box(ga).normalize_or(glam::Vec3::X))
+    });
+    g.finish();
+
     let mut g = c.benchmark_group("vec3_lerp");
     g.bench_function("algebrix", |bench| {
         bench.iter(|| black_box(a).lerp(black_box(b), black_box(0.25)))
@@ -72,18 +81,14 @@ fn vec4_ops(c: &mut Criterion) {
     g.bench_function("algebrix", |bench| {
         bench.iter(|| black_box(a) + black_box(b))
     });
-    g.bench_function("glam", |bench| {
-        bench.iter(|| black_box(ga) + black_box(gb))
-    });
+    g.bench_function("glam", |bench| bench.iter(|| black_box(ga) + black_box(gb)));
     g.finish();
 
     let mut g = c.benchmark_group("vec4_mul");
     g.bench_function("algebrix", |bench| {
         bench.iter(|| black_box(a) * black_box(b))
     });
-    g.bench_function("glam", |bench| {
-        bench.iter(|| black_box(ga) * black_box(gb))
-    });
+    g.bench_function("glam", |bench| bench.iter(|| black_box(ga) * black_box(gb)));
     g.finish();
 
     let mut g = c.benchmark_group("vec4_normalize");
@@ -145,7 +150,9 @@ fn mat4_ops(c: &mut Criterion) {
     g.finish();
 
     let mut g = c.benchmark_group("mat4_transpose");
-    g.bench_function("algebrix", |bench| bench.iter(|| black_box(srt).transpose()));
+    g.bench_function("algebrix", |bench| {
+        bench.iter(|| black_box(srt).transpose())
+    });
     g.bench_function("glam", |bench| bench.iter(|| black_box(gsrt).transpose()));
     g.finish();
 
@@ -158,9 +165,7 @@ fn mat4_ops(c: &mut Criterion) {
     g.bench_function("algebrix", |bench| {
         bench.iter(|| black_box(srt).determinant())
     });
-    g.bench_function("glam", |bench| {
-        bench.iter(|| black_box(gsrt).determinant())
-    });
+    g.bench_function("glam", |bench| bench.iter(|| black_box(gsrt).determinant()));
     g.finish();
 }
 
@@ -186,9 +191,7 @@ fn quat_ops(c: &mut Criterion) {
     g.bench_function("algebrix", |bench| {
         bench.iter(|| black_box(a) * black_box(b))
     });
-    g.bench_function("glam", |bench| {
-        bench.iter(|| black_box(ga) * black_box(gb))
-    });
+    g.bench_function("glam", |bench| bench.iter(|| black_box(ga) * black_box(gb)));
     g.finish();
 
     let mut g = c.benchmark_group("quat_slerp");

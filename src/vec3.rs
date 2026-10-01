@@ -202,10 +202,7 @@ impl Vec3 {
                         _mm_mul_ss(half, rsqrt_approx),
                         _mm_sub_ss(
                             three,
-                            _mm_mul_ss(
-                                _mm_mul_ss(len_sq_simd, rsqrt_approx),
-                                rsqrt_approx,
-                            ),
+                            _mm_mul_ss(_mm_mul_ss(len_sq_simd, rsqrt_approx), rsqrt_approx),
                         ),
                     );
                     len_sq * _mm_cvtss_f32(refined)
@@ -265,6 +262,18 @@ impl Vec3 {
             self * len_sq.sqrt().recip()
         } else {
             Self::ZERO
+        }
+    }
+
+    /// Normalizes, or returns `fallback` when the length is zero or not
+    /// finite (too short or broken to give a direction).
+    #[inline]
+    pub fn normalize_or(self, fallback: Self) -> Self {
+        let rcp = self.length().recip();
+        if rcp.is_finite() && rcp > 0.0 {
+            self * rcp
+        } else {
+            fallback
         }
     }
 
@@ -358,7 +367,10 @@ impl Vec3 {
                 let b_yzx = _mm_shuffle_ps(v_b, v_b, 0b11_00_10_01);
                 let a_zxy = _mm_shuffle_ps(v_a, v_a, 0b11_01_00_10);
                 let b_zxy = _mm_shuffle_ps(v_b, v_b, 0b11_01_00_10);
-                Self(_mm_sub_ps(_mm_mul_ps(a_yzx, b_zxy), _mm_mul_ps(a_zxy, b_yzx)))
+                Self(_mm_sub_ps(
+                    _mm_mul_ps(a_yzx, b_zxy),
+                    _mm_mul_ps(a_zxy, b_yzx),
+                ))
             }
         }
         #[cfg(not(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86"))))]
@@ -410,7 +422,11 @@ impl Vec3 {
             all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm"))
         )))]
         {
-            Self::new(self.x.min(other.x), self.y.min(other.y), self.z.min(other.z))
+            Self::new(
+                self.x.min(other.x),
+                self.y.min(other.y),
+                self.z.min(other.z),
+            )
         }
     }
 
@@ -429,7 +445,11 @@ impl Vec3 {
             all(target_arch = "aarch64", any(feature = "simd", feature = "simd-arm"))
         )))]
         {
-            Self::new(self.x.max(other.x), self.y.max(other.y), self.z.max(other.z))
+            Self::new(
+                self.x.max(other.x),
+                self.y.max(other.y),
+                self.z.max(other.z),
+            )
         }
     }
 
@@ -855,6 +875,24 @@ impl From<(f32, f32, f32)> for Vec3 {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn normalize_or_falls_back_only_without_a_direction() {
+        let v = Vec3::new(0.0, 3.0, 4.0);
+        assert!((v.normalize_or(Vec3::new(1.0, 0.0, 0.0)).length() - 1.0).abs() < 1e-6);
+        assert_eq!(
+            Vec3::ZERO.normalize_or(Vec3::new(1.0, 0.0, 0.0)),
+            Vec3::new(1.0, 0.0, 0.0)
+        );
+        assert_eq!(
+            Vec3::splat(f32::INFINITY).normalize_or(Vec3::new(1.0, 0.0, 0.0)),
+            Vec3::new(1.0, 0.0, 0.0)
+        );
+        assert_eq!(
+            Vec3::splat(f32::NAN).normalize_or(Vec3::new(1.0, 0.0, 0.0)),
+            Vec3::new(1.0, 0.0, 0.0)
+        );
+    }
     use super::*;
 
     #[test]
