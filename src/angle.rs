@@ -57,12 +57,19 @@ impl Rad {
     /// differences.
     #[inline]
     pub fn normalize_signed(self) -> Self {
-        let pi = std::f32::consts::PI;
-        let wrapped = self.normalize().0;
-        Self(if wrapped > pi {
-            wrapped - std::f32::consts::TAU
+        use std::f32::consts::{PI, TAU};
+        let a = self.0;
+        // in range already: untouched, so repeated wrapping loses nothing
+        if a > -PI && a <= PI {
+            return self;
+        }
+        let w = a - TAU * (a / TAU).round();
+        Self(if w <= -PI {
+            w + TAU
+        } else if w > PI {
+            w - TAU
         } else {
-            wrapped
+            w
         })
     }
 }
@@ -157,11 +164,17 @@ impl Deg {
     /// Wrap into (-180, 180]; the shortest signed turn.
     #[inline]
     pub fn normalize_signed(self) -> Self {
-        let wrapped = self.normalize().0;
-        Self(if wrapped > 180.0 {
-            wrapped - 360.0
+        let a = self.0;
+        if a > -180.0 && a <= 180.0 {
+            return self;
+        }
+        let w = a - 360.0 * (a / 360.0).round();
+        Self(if w <= -180.0 {
+            w + 360.0
+        } else if w > 180.0 {
+            w - 360.0
         } else {
-            wrapped
+            w
         })
     }
 }
@@ -244,6 +257,12 @@ mod tests {
         assert!((Rad::new(3.0 * PI + 0.2).normalize_signed().0 - (-PI + 0.2)).abs() < 1e-4);
         assert!((Deg::new(350.0).normalize_signed().0 + 10.0).abs() < 1e-4);
         assert!((Deg::new(-190.0).normalize_signed().0 - 170.0).abs() < 1e-4);
+        // in range comes back bit for bit, so repeated wrapping does not creep
+        assert_eq!(
+            Rad::new(-0.3).normalize_signed().0.to_bits(),
+            (-0.3_f32).to_bits()
+        );
+        assert!((Rad::new(-PI).normalize_signed().0 - PI).abs() < 1e-5);
     }
     use super::*;
 
