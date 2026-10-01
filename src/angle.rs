@@ -17,7 +17,7 @@
 //! assert!(b.as_rad() >= 0.0 && b.as_rad() < std::f32::consts::TAU);
 //! ```
 
-use std::ops::{Add, Sub, Mul, Div, Neg};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 /// Angle in radians. Use [`new`](Rad::new) or `Rad::from(deg)` from degrees.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
@@ -51,6 +51,19 @@ impl Rad {
             angle += two_pi;
         }
         Self(angle)
+    }
+
+    /// Wrap into (-π, π]; the shortest signed turn, e.g. for angle
+    /// differences.
+    #[inline]
+    pub fn normalize_signed(self) -> Self {
+        let pi = std::f32::consts::PI;
+        let wrapped = self.normalize().0;
+        Self(if wrapped > pi {
+            wrapped - std::f32::consts::TAU
+        } else {
+            wrapped
+        })
     }
 }
 
@@ -140,6 +153,17 @@ impl Deg {
         }
         Self(angle)
     }
+
+    /// Wrap into (-180, 180]; the shortest signed turn.
+    #[inline]
+    pub fn normalize_signed(self) -> Self {
+        let wrapped = self.normalize().0;
+        Self(if wrapped > 180.0 {
+            wrapped - 360.0
+        } else {
+            wrapped
+        })
+    }
 }
 
 impl From<Rad> for Deg {
@@ -210,6 +234,17 @@ pub enum EulerRot {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn normalize_signed_takes_the_short_way() {
+        use std::f32::consts::{PI, TAU};
+        assert!((Rad::new(TAU - 0.1).normalize_signed().0 + 0.1).abs() < 1e-5);
+        assert!((Rad::new(-TAU + 0.1).normalize_signed().0 - 0.1).abs() < 1e-5);
+        assert!((Rad::new(PI).normalize_signed().0 - PI).abs() < 1e-5);
+        assert!((Rad::new(3.0 * PI + 0.2).normalize_signed().0 - (-PI + 0.2)).abs() < 1e-4);
+        assert!((Deg::new(350.0).normalize_signed().0 + 10.0).abs() < 1e-4);
+        assert!((Deg::new(-190.0).normalize_signed().0 - 170.0).abs() < 1e-4);
+    }
     use super::*;
 
     #[test]

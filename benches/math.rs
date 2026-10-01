@@ -194,6 +194,20 @@ fn quat_ops(c: &mut Criterion) {
     g.bench_function("glam", |bench| bench.iter(|| black_box(ga) * black_box(gb)));
     g.finish();
 
+    // no glam counterpart: swing-twist by hand is what glam users write
+    let mut g = c.benchmark_group("quat_twist_angle");
+    g.bench_function("algebrix", |bench| {
+        bench.iter(|| black_box(a).twist_angle(black_box(Vec3::Y)))
+    });
+    g.bench_function("glam_by_hand", |bench| {
+        bench.iter(|| {
+            let q = black_box(ga);
+            let along = glam::Vec3::new(q.x, q.y, q.z).dot(black_box(glam::Vec3::Y));
+            2.0 * along.atan2(q.w)
+        })
+    });
+    g.finish();
+
     let mut g = c.benchmark_group("quat_slerp");
     g.bench_function("algebrix", |bench| {
         bench.iter(|| black_box(a).slerp(black_box(b), black_box(0.35)))

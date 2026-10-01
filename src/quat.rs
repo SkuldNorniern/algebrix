@@ -92,7 +92,12 @@ impl Quat {
         let s = half_angle.sin();
         let c = half_angle.cos();
         let normalized_axis = axis.normalize();
-        Self::new(normalized_axis.x * s, normalized_axis.y * s, normalized_axis.z * s, c)
+        Self::new(
+            normalized_axis.x * s,
+            normalized_axis.y * s,
+            normalized_axis.z * s,
+            c,
+        )
     }
 
     /// Rotation around +X by `angle` radians.
@@ -134,7 +139,11 @@ impl Quat {
     #[inline]
     pub fn to_scaled_axis(self) -> Vec3 {
         // q and -q are the same rotation, take the short way
-        let q = if self.w < 0.0 { -self.normalize() } else { self.normalize() };
+        let q = if self.w < 0.0 {
+            -self.normalize()
+        } else {
+            self.normalize()
+        };
         let xyz = Vec3::new(q.x, q.y, q.z);
         let sin_half = xyz.length();
         if sin_half < 1e-8 {
@@ -176,19 +185,39 @@ impl Quat {
         if trace > 0.0 {
             let s = (trace + 1.0).sqrt() * 2.0;
             let inv_s = s.recip();
-            Self::new((mat.y_axis.z - mat.z_axis.y) * inv_s, (mat.z_axis.x - mat.x_axis.z) * inv_s, (mat.x_axis.y - mat.y_axis.x) * inv_s, s * 0.25)
+            Self::new(
+                (mat.y_axis.z - mat.z_axis.y) * inv_s,
+                (mat.z_axis.x - mat.x_axis.z) * inv_s,
+                (mat.x_axis.y - mat.y_axis.x) * inv_s,
+                s * 0.25,
+            )
         } else if mat.x_axis.x > mat.y_axis.y && mat.x_axis.x > mat.z_axis.z {
             let s = (1.0 + mat.x_axis.x - mat.y_axis.y - mat.z_axis.z).sqrt() * 2.0;
             let inv_s = s.recip();
-            Self::new(s * 0.25, (mat.x_axis.y + mat.y_axis.x) * inv_s, (mat.z_axis.x + mat.x_axis.z) * inv_s, (mat.y_axis.z - mat.z_axis.y) * inv_s)
+            Self::new(
+                s * 0.25,
+                (mat.x_axis.y + mat.y_axis.x) * inv_s,
+                (mat.z_axis.x + mat.x_axis.z) * inv_s,
+                (mat.y_axis.z - mat.z_axis.y) * inv_s,
+            )
         } else if mat.y_axis.y > mat.z_axis.z {
             let s = (1.0 + mat.y_axis.y - mat.x_axis.x - mat.z_axis.z).sqrt() * 2.0;
             let inv_s = s.recip();
-            Self::new((mat.x_axis.y + mat.y_axis.x) * inv_s, s * 0.25, (mat.y_axis.z + mat.z_axis.y) * inv_s, (mat.z_axis.x - mat.x_axis.z) * inv_s)
+            Self::new(
+                (mat.x_axis.y + mat.y_axis.x) * inv_s,
+                s * 0.25,
+                (mat.y_axis.z + mat.z_axis.y) * inv_s,
+                (mat.z_axis.x - mat.x_axis.z) * inv_s,
+            )
         } else {
             let s = (1.0 + mat.z_axis.z - mat.x_axis.x - mat.y_axis.y).sqrt() * 2.0;
             let inv_s = s.recip();
-            Self::new((mat.z_axis.x + mat.x_axis.z) * inv_s, (mat.y_axis.z + mat.z_axis.y) * inv_s, s * 0.25, (mat.x_axis.y - mat.y_axis.x) * inv_s)
+            Self::new(
+                (mat.z_axis.x + mat.x_axis.z) * inv_s,
+                (mat.y_axis.z + mat.z_axis.y) * inv_s,
+                s * 0.25,
+                (mat.x_axis.y - mat.y_axis.x) * inv_s,
+            )
         }
     }
 
@@ -227,7 +256,12 @@ impl Quat {
         let sz = half_z.sin();
         let cz = half_z.cos();
 
-        Self::new(sx * cy * cz - cx * sy * sz, cx * sy * cz + sx * cy * sz, cx * cy * sz - sx * sy * cz, cx * cy * cz + sx * sy * sz)
+        Self::new(
+            sx * cy * cz - cx * sy * sz,
+            cx * sy * cz + sx * cy * sz,
+            cx * cy * sz - sx * sy * cz,
+            cx * cy * cz + sx * sy * sz,
+        )
     }
 
     #[inline]
@@ -260,7 +294,12 @@ impl Quat {
         let len_sq = self.length_squared();
         if len_sq > 0.0 {
             let inv_len_sq = len_sq.recip();
-            Self::new(-self.x * inv_len_sq, -self.y * inv_len_sq, -self.z * inv_len_sq, self.w * inv_len_sq)
+            Self::new(
+                -self.x * inv_len_sq,
+                -self.y * inv_len_sq,
+                -self.z * inv_len_sq,
+                self.w * inv_len_sq,
+            )
         } else {
             Self::IDENTITY
         }
@@ -309,6 +348,47 @@ impl Quat {
     #[inline]
     pub fn rotate_vec3(self, v: Vec3) -> Vec3 {
         self.mul_vec3(v)
+    }
+
+    /// Signed rotation about unit `axis` in the swing-twist split of this
+    /// rotation, in (-π, π]. Left-multiplying by a rotation of `a` about
+    /// `axis` adds exactly `a`. Meaningless near a half turn about an axis
+    /// square to `axis` (then `twist_strength` is near zero).
+    #[inline]
+    pub fn twist_angle(self, axis: Vec3) -> f32 {
+        let along = self.x * axis.x + self.y * axis.y + self.z * axis.z;
+        // atan2 is in (-π, π], doubled one turn either way at most
+        let angle = 2.0 * along.atan2(self.w);
+        if angle > std::f32::consts::PI {
+            angle - std::f32::consts::TAU
+        } else if angle <= -std::f32::consts::PI {
+            angle + std::f32::consts::TAU
+        } else {
+            angle
+        }
+    }
+
+    /// How well defined `twist_angle(axis)` is, 0 to 1: the length of the
+    /// twist part before normalizing.
+    #[inline]
+    pub fn twist_strength(self, axis: Vec3) -> f32 {
+        let along = self.x * axis.x + self.y * axis.y + self.z * axis.z;
+        along.hypot(self.w)
+    }
+
+    /// Splits into `(swing, twist)` with `self = swing * twist`, `twist` a
+    /// rotation about unit `axis` and `swing` about an axis square to it.
+    #[inline]
+    pub fn swing_twist(self, axis: Vec3) -> (Self, Self) {
+        let along = self.x * axis.x + self.y * axis.y + self.z * axis.z;
+        let twist = Self::from_xyzw(axis.x * along, axis.y * along, axis.z * along, self.w);
+        let len = twist.length();
+        let twist = if len > 1e-6 {
+            twist * len.recip()
+        } else {
+            Self::IDENTITY
+        };
+        ((self * twist.conjugate()).normalize(), twist)
     }
 
     /// Extract axis and angle from this quaternion
@@ -573,9 +653,18 @@ impl std::ops::Mul for Quat {
                 let b_zwxy = _mm_shuffle_ps(b, b, 0b01_00_11_10);
                 let b_yxwz = _mm_shuffle_ps(b, b, 0b10_11_00_01);
                 let t0 = _mm_mul_ps(_mm_shuffle_ps(a, a, 0b11_11_11_11), b);
-                let t1 = _mm_mul_ps(_mm_mul_ps(_mm_shuffle_ps(a, a, 0b00_00_00_00), b_wzyx), _mm_setr_ps(1.0, -1.0, 1.0, -1.0));
-                let t2 = _mm_mul_ps(_mm_mul_ps(_mm_shuffle_ps(a, a, 0b01_01_01_01), b_zwxy), _mm_setr_ps(1.0, 1.0, -1.0, -1.0));
-                let t3 = _mm_mul_ps(_mm_mul_ps(_mm_shuffle_ps(a, a, 0b10_10_10_10), b_yxwz), _mm_setr_ps(-1.0, 1.0, 1.0, -1.0));
+                let t1 = _mm_mul_ps(
+                    _mm_mul_ps(_mm_shuffle_ps(a, a, 0b00_00_00_00), b_wzyx),
+                    _mm_setr_ps(1.0, -1.0, 1.0, -1.0),
+                );
+                let t2 = _mm_mul_ps(
+                    _mm_mul_ps(_mm_shuffle_ps(a, a, 0b01_01_01_01), b_zwxy),
+                    _mm_setr_ps(1.0, 1.0, -1.0, -1.0),
+                );
+                let t3 = _mm_mul_ps(
+                    _mm_mul_ps(_mm_shuffle_ps(a, a, 0b10_10_10_10), b_yxwz),
+                    _mm_setr_ps(-1.0, 1.0, 1.0, -1.0),
+                );
                 Self(Vec4(_mm_add_ps(_mm_add_ps(t0, t1), _mm_add_ps(t2, t3))))
             }
         }
@@ -589,9 +678,21 @@ impl std::ops::Mul for Quat {
 impl Quat {
     /// Hamilton product written out per lane. Reference for the SIMD path.
     #[inline]
-    #[cfg_attr(all(target_arch = "x86_64", any(feature = "simd", feature = "simd-x86"), not(test)), allow(dead_code))]
+    #[cfg_attr(
+        all(
+            target_arch = "x86_64",
+            any(feature = "simd", feature = "simd-x86"),
+            not(test)
+        ),
+        allow(dead_code)
+    )]
     fn mul_scalar(self, other: Self) -> Self {
-        Self::new(self.w * other.x + self.x * other.w + self.y * other.z - self.z * other.y, self.w * other.y + self.y * other.w + self.z * other.x - self.x * other.z, self.w * other.z + self.z * other.w + self.x * other.y - self.y * other.x, self.w * other.w - self.x * other.x - self.y * other.y - self.z * other.z)
+        Self::new(
+            self.w * other.x + self.x * other.w + self.y * other.z - self.z * other.y,
+            self.w * other.y + self.y * other.w + self.z * other.x - self.x * other.z,
+            self.w * other.z + self.z * other.w + self.x * other.y - self.y * other.x,
+            self.w * other.w - self.x * other.x - self.y * other.y - self.z * other.z,
+        )
     }
 }
 
@@ -637,6 +738,24 @@ impl std::ops::Neg for Quat {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn twist_about_an_axis() {
+        let up = Vec3::new(0.0, 1.0, 0.0);
+        let tilt = Quat::from_rotation_x(0.4);
+        for yaw in [0.3_f32, -2.0, 3.0] {
+            let q = Quat::from_rotation_y(yaw) * tilt;
+            assert!((q.twist_angle(up) - yaw).abs() < 1e-5, "{yaw}");
+            assert!(q.twist_strength(up) > 0.9);
+            let (swing, twist) = q.swing_twist(up);
+            assert!((swing * twist).angle_between(q) < 1e-5);
+            assert!((twist.twist_angle(up) - q.twist_angle(up)).abs() < 1e-5);
+            let swing_axis = swing.to_axis_angle().0;
+            assert!(swing_axis.dot(up).abs() < 1e-4);
+        }
+        // a half turn about a square axis has no twist to speak of
+        assert!(Quat::from_rotation_x(std::f32::consts::PI).twist_strength(up) < 1e-5);
+    }
     use super::*;
 
     #[test]
@@ -685,7 +804,9 @@ mod tests {
             seed ^= seed << 5;
             (seed as f32 / u32::MAX as f32) * 4.0 - 2.0
         };
-        (0..256).map(|_| Quat::new(next(), next(), next(), next())).collect()
+        (0..256)
+            .map(|_| Quat::new(next(), next(), next(), next()))
+            .collect()
     }
 
     #[test]
@@ -708,9 +829,15 @@ mod tests {
     #[test]
     fn test_quat_from_rotation_axes() {
         let angle = 0.7;
-        assert!(Quat::from_rotation_x(angle).abs_diff_eq(Quat::from_axis_angle(Vec3::X, angle), 1e-6));
-        assert!(Quat::from_rotation_y(angle).abs_diff_eq(Quat::from_axis_angle(Vec3::Y, angle), 1e-6));
-        assert!(Quat::from_rotation_z(angle).abs_diff_eq(Quat::from_axis_angle(Vec3::Z, angle), 1e-6));
+        assert!(
+            Quat::from_rotation_x(angle).abs_diff_eq(Quat::from_axis_angle(Vec3::X, angle), 1e-6)
+        );
+        assert!(
+            Quat::from_rotation_y(angle).abs_diff_eq(Quat::from_axis_angle(Vec3::Y, angle), 1e-6)
+        );
+        assert!(
+            Quat::from_rotation_z(angle).abs_diff_eq(Quat::from_axis_angle(Vec3::Z, angle), 1e-6)
+        );
     }
 
     #[test]
@@ -722,7 +849,11 @@ mod tests {
             assert!(q.to_scaled_axis().length() <= std::f32::consts::PI + 1e-5);
         }
         let v = Vec3::new(0.0, 0.0, 1e-9);
-        assert!(Quat::from_scaled_axis(v).to_scaled_axis().abs_diff_eq(v, 1e-12));
+        assert!(
+            Quat::from_scaled_axis(v)
+                .to_scaled_axis()
+                .abs_diff_eq(v, 1e-12)
+        );
         assert_eq!(Quat::from_scaled_axis(Vec3::ZERO), Quat::IDENTITY);
     }
 
