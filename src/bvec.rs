@@ -63,19 +63,28 @@ impl BVec2 {
     /// Component-wise AND
     #[inline(always)]
     pub fn and(self, other: Self) -> Self {
-        Self { x: self.x && other.x, y: self.y && other.y }
+        Self {
+            x: self.x && other.x,
+            y: self.y && other.y,
+        }
     }
 
     /// Component-wise OR
     #[inline(always)]
     pub fn or(self, other: Self) -> Self {
-        Self { x: self.x || other.x, y: self.y || other.y }
+        Self {
+            x: self.x || other.x,
+            y: self.y || other.y,
+        }
     }
 
     /// Component-wise XOR
     #[inline(always)]
     pub fn xor(self, other: Self) -> Self {
-        Self { x: self.x ^ other.x, y: self.y ^ other.y }
+        Self {
+            x: self.x ^ other.x,
+            y: self.y ^ other.y,
+        }
     }
 
     /// Select components: if mask is true, use a, else use b
@@ -92,7 +101,10 @@ impl std::ops::Not for BVec2 {
     type Output = Self;
     #[inline]
     fn not(self) -> Self {
-        Self { x: !self.x, y: !self.y }
+        Self {
+            x: !self.x,
+            y: !self.y,
+        }
     }
 }
 
@@ -129,8 +141,16 @@ pub struct BVec3 {
 }
 
 impl BVec3 {
-    pub const FALSE: BVec3 = BVec3 { x: false, y: false, z: false };
-    pub const TRUE: BVec3 = BVec3 { x: true, y: true, z: true };
+    pub const FALSE: BVec3 = BVec3 {
+        x: false,
+        y: false,
+        z: false,
+    };
+    pub const TRUE: BVec3 = BVec3 {
+        x: true,
+        y: true,
+        z: true,
+    };
 
     #[inline(always)]
     pub const fn new(x: bool, y: bool, z: bool) -> Self {
@@ -198,7 +218,11 @@ impl std::ops::Not for BVec3 {
     type Output = Self;
     #[inline]
     fn not(self) -> Self {
-        Self { x: !self.x, y: !self.y, z: !self.z }
+        Self {
+            x: !self.x,
+            y: !self.y,
+            z: !self.z,
+        }
     }
 }
 
@@ -236,8 +260,18 @@ pub struct BVec4 {
 }
 
 impl BVec4 {
-    pub const FALSE: BVec4 = BVec4 { x: false, y: false, z: false, w: false };
-    pub const TRUE: BVec4 = BVec4 { x: true, y: true, z: true, w: true };
+    pub const FALSE: BVec4 = BVec4 {
+        x: false,
+        y: false,
+        z: false,
+        w: false,
+    };
+    pub const TRUE: BVec4 = BVec4 {
+        x: true,
+        y: true,
+        z: true,
+        w: true,
+    };
 
     #[inline(always)]
     pub const fn new(x: bool, y: bool, z: bool, w: bool) -> Self {
@@ -246,7 +280,12 @@ impl BVec4 {
 
     #[inline(always)]
     pub const fn splat(v: bool) -> Self {
-        Self { x: v, y: v, z: v, w: v }
+        Self {
+            x: v,
+            y: v,
+            z: v,
+            w: v,
+        }
     }
 
     #[inline(always)]
@@ -309,7 +348,12 @@ impl std::ops::Not for BVec4 {
     type Output = Self;
     #[inline]
     fn not(self) -> Self {
-        Self { x: !self.x, y: !self.y, z: !self.z, w: !self.w }
+        Self {
+            x: !self.x,
+            y: !self.y,
+            z: !self.z,
+            w: !self.w,
+        }
     }
 }
 

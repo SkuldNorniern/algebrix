@@ -14,8 +14,8 @@
 //! assert!((t.unwrap() - 5.0).abs() < 1e-5);
 //! ```
 
-use crate::Vec3;
 use super::Plane;
+use crate::Vec3;
 
 /// Ray from `origin` along `direction`. Direction is normalized on creation.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -63,11 +63,7 @@ impl Ray {
             return None;
         }
         let t = -(plane.normal.dot(self.origin) + plane.d) / denom;
-        if t >= 0.0 {
-            Some(t)
-        } else {
-            None
-        }
+        if t >= 0.0 { Some(t) } else { None }
     }
 }
 

@@ -37,25 +37,25 @@
 //! assert!((x_rotated - Vec3::Y).length() < 1e-5);
 //! ```
 
-pub mod vec2;
-pub mod vec3;
-pub mod vec4;
+pub mod bvec;
 pub mod ivec2;
 pub mod ivec3;
 pub mod ivec4;
+pub mod swizzles;
 pub mod uvec2;
 pub mod uvec3;
 pub mod uvec4;
-pub mod bvec;
-pub mod swizzles;
+pub mod vec2;
+pub mod vec3;
+pub mod vec4;
 
+pub mod dmat4;
 pub mod mat2;
 pub mod mat3;
 pub mod mat4;
-pub mod dmat4;
 
-pub mod quat;
 pub mod dquat;
+pub mod quat;
 
 pub mod dvec3;
 
@@ -70,33 +70,33 @@ pub mod utils;
 
 pub mod compat;
 
-pub use vec2::Vec2;
-pub use vec3::Vec3;
-pub use vec4::Vec4;
+pub use bvec::{BVec2, BVec3, BVec4};
 pub use ivec2::IVec2;
 pub use ivec3::IVec3;
 pub use ivec4::IVec4;
+pub use swizzles::{Vec2Swizzles, Vec3Swizzles, Vec4Swizzles};
 pub use uvec2::UVec2;
 pub use uvec3::UVec3;
 pub use uvec4::UVec4;
-pub use bvec::{BVec2, BVec3, BVec4};
-pub use swizzles::{Vec2Swizzles, Vec3Swizzles, Vec4Swizzles};
+pub use vec2::Vec2;
+pub use vec3::Vec3;
+pub use vec4::Vec4;
 
+pub use dmat4::DMat4;
 pub use mat2::Mat2;
 pub use mat3::Mat3;
 pub use mat4::Mat4;
-pub use dmat4::DMat4;
 
-pub use quat::Quat;
 pub use dquat::DQuat;
+pub use quat::Quat;
 
 pub use dvec3::DVec3;
 
 pub use affine2::Affine2;
 pub use affine3::Affine3;
 
-pub use geometry::{Plane, Ray, Aabb2, Aabb3, Frustum};
+pub use geometry::{Aabb2, Aabb3, Frustum, Plane, Ray};
 
-pub use angle::{Rad, Deg, EulerRot};
+pub use angle::{Deg, EulerRot, Rad};
 
 pub use utils::*;

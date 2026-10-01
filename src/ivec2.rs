@@ -50,19 +50,28 @@ impl IVec2 {
 
     #[inline(always)]
     pub fn abs(self) -> Self {
-        Self { x: self.x.abs(), y: self.y.abs() }
+        Self {
+            x: self.x.abs(),
+            y: self.y.abs(),
+        }
     }
 
     /// Component-wise minimum.
     #[inline(always)]
     pub fn min(self, other: Self) -> Self {
-        Self { x: self.x.min(other.x), y: self.y.min(other.y) }
+        Self {
+            x: self.x.min(other.x),
+            y: self.y.min(other.y),
+        }
     }
 
     /// Component-wise maximum.
     #[inline(always)]
     pub fn max(self, other: Self) -> Self {
-        Self { x: self.x.max(other.x), y: self.y.max(other.y) }
+        Self {
+            x: self.x.max(other.x),
+            y: self.y.max(other.y),
+        }
     }
 
     /// Smallest component.
@@ -121,7 +130,10 @@ impl std::ops::Add for IVec2 {
     type Output = Self;
     #[inline]
     fn add(self, other: Self) -> Self {
-        Self { x: self.x + other.x, y: self.y + other.y }
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
     }
 }
 
@@ -129,7 +141,10 @@ impl std::ops::Sub for IVec2 {
     type Output = Self;
     #[inline]
     fn sub(self, other: Self) -> Self {
-        Self { x: self.x - other.x, y: self.y - other.y }
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
     }
 }
 
@@ -137,7 +152,10 @@ impl std::ops::Mul<i32> for IVec2 {
     type Output = Self;
     #[inline]
     fn mul(self, scalar: i32) -> Self {
-        Self { x: self.x * scalar, y: self.y * scalar }
+        Self {
+            x: self.x * scalar,
+            y: self.y * scalar,
+        }
     }
 }
 
@@ -145,7 +163,10 @@ impl std::ops::Mul for IVec2 {
     type Output = Self;
     #[inline]
     fn mul(self, other: Self) -> Self {
-        Self { x: self.x * other.x, y: self.y * other.y }
+        Self {
+            x: self.x * other.x,
+            y: self.y * other.y,
+        }
     }
 }
 
@@ -153,7 +174,10 @@ impl std::ops::Div<i32> for IVec2 {
     type Output = Self;
     #[inline]
     fn div(self, scalar: i32) -> Self {
-        Self { x: self.x / scalar, y: self.y / scalar }
+        Self {
+            x: self.x / scalar,
+            y: self.y / scalar,
+        }
     }
 }
 
@@ -161,13 +185,19 @@ impl std::ops::Neg for IVec2 {
     type Output = Self;
     #[inline]
     fn neg(self) -> Self {
-        Self { x: -self.x, y: -self.y }
+        Self {
+            x: -self.x,
+            y: -self.y,
+        }
     }
 }
 
 impl From<Vec2> for IVec2 {
     fn from(v: Vec2) -> Self {
-        Self { x: v.x as i32, y: v.y as i32 }
+        Self {
+            x: v.x as i32,
+            y: v.y as i32,
+        }
     }
 }
 

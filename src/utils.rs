@@ -136,10 +136,7 @@ pub fn f32_rsqrt(x: f32) -> f32 {
                 _mm_mul_ss(half, rsqrt_approx),
                 _mm_sub_ss(
                     three,
-                    _mm_mul_ss(
-                        _mm_mul_ss(x_simd, rsqrt_approx),
-                        rsqrt_approx,
-                    ),
+                    _mm_mul_ss(_mm_mul_ss(x_simd, rsqrt_approx), rsqrt_approx),
                 ),
             );
             _mm_cvtss_f32(refined)

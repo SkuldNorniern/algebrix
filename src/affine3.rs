@@ -36,7 +36,10 @@ impl Affine3 {
     /// Build from a 3x3 matrix and translation.
     #[inline(always)]
     pub const fn new(matrix: Mat3, translation: Vec3) -> Self {
-        Self { matrix, translation }
+        Self {
+            matrix,
+            translation,
+        }
     }
 
     /// Translation only (identity rotation/scale).

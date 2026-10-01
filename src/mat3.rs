@@ -273,9 +273,15 @@ impl Mat3 {
     #[inline]
     pub fn to_cols_array(self) -> [f32; 9] {
         [
-            self.x_axis.x, self.x_axis.y, self.x_axis.z,
-            self.y_axis.x, self.y_axis.y, self.y_axis.z,
-            self.z_axis.x, self.z_axis.y, self.z_axis.z,
+            self.x_axis.x,
+            self.x_axis.y,
+            self.x_axis.z,
+            self.y_axis.x,
+            self.y_axis.y,
+            self.y_axis.z,
+            self.z_axis.x,
+            self.z_axis.y,
+            self.z_axis.z,
         ]
     }
 }
