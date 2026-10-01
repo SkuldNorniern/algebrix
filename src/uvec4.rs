@@ -24,19 +24,9 @@ pub struct UVec4 {
 
 impl UVec4 {
     /// Zero vector (0, 0, 0, 0).
-    pub const ZERO: UVec4 = UVec4 {
-        x: 0,
-        y: 0,
-        z: 0,
-        w: 0,
-    };
+    pub const ZERO: UVec4 = UVec4 { x: 0, y: 0, z: 0, w: 0 };
     /// Vector (1, 1, 1, 1).
-    pub const ONE: UVec4 = UVec4 {
-        x: 1,
-        y: 1,
-        z: 1,
-        w: 1,
-    };
+    pub const ONE: UVec4 = UVec4 { x: 1, y: 1, z: 1, w: 1 };
 
     /// Build from x, y, z, w.
     #[inline(always)]
@@ -46,12 +36,7 @@ impl UVec4 {
 
     #[inline(always)]
     pub const fn splat(v: u32) -> Self {
-        Self {
-            x: v,
-            y: v,
-            z: v,
-            w: v,
-        }
+        Self { x: v, y: v, z: v, w: v }
     }
 
     /// Component-wise minimum.
@@ -108,12 +93,7 @@ impl UVec4 {
     /// Build from a 4-element array.
     #[inline(always)]
     pub fn from_array(a: [u32; 4]) -> Self {
-        Self {
-            x: a[0],
-            y: a[1],
-            z: a[2],
-            w: a[3],
-        }
+        Self { x: a[0], y: a[1], z: a[2], w: a[3] }
     }
 
     /// Copy into a 4-element array [x, y, z, w].

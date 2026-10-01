@@ -284,14 +284,7 @@ impl Mat4 {
 
     /// Right-handed orthographic projection matrix
     #[inline]
-    pub fn orthographic_rh(
-        left: f32,
-        right: f32,
-        bottom: f32,
-        top: f32,
-        z_near: f32,
-        z_far: f32,
-    ) -> Self {
+    pub fn orthographic_rh(left: f32, right: f32, bottom: f32, top: f32, z_near: f32, z_far: f32) -> Self {
         let rml = right - left;
         let tmb = top - bottom;
         let fmn = z_far - z_near;
@@ -311,14 +304,7 @@ impl Mat4 {
 
     /// Left-handed orthographic projection matrix
     #[inline]
-    pub fn orthographic_lh(
-        left: f32,
-        right: f32,
-        bottom: f32,
-        top: f32,
-        z_near: f32,
-        z_far: f32,
-    ) -> Self {
+    pub fn orthographic_lh(left: f32, right: f32, bottom: f32, top: f32, z_near: f32, z_far: f32) -> Self {
         let rml = right - left;
         let tmb = top - bottom;
         let fmn = z_far - z_near;
@@ -447,22 +433,10 @@ impl Mat4 {
         )))]
         {
             Vec4::new(
-                self.x_axis.x * other.x
-                    + self.y_axis.x * other.y
-                    + self.z_axis.x * other.z
-                    + self.w_axis.x * other.w,
-                self.x_axis.y * other.x
-                    + self.y_axis.y * other.y
-                    + self.z_axis.y * other.z
-                    + self.w_axis.y * other.w,
-                self.x_axis.z * other.x
-                    + self.y_axis.z * other.y
-                    + self.z_axis.z * other.z
-                    + self.w_axis.z * other.w,
-                self.x_axis.w * other.x
-                    + self.y_axis.w * other.y
-                    + self.z_axis.w * other.z
-                    + self.w_axis.w * other.w,
+                self.x_axis.x * other.x + self.y_axis.x * other.y + self.z_axis.x * other.z + self.w_axis.x * other.w,
+                self.x_axis.y * other.x + self.y_axis.y * other.y + self.z_axis.y * other.z + self.w_axis.y * other.w,
+                self.x_axis.z * other.x + self.y_axis.z * other.y + self.z_axis.z * other.z + self.w_axis.z * other.w,
+                self.x_axis.w * other.x + self.y_axis.w * other.y + self.z_axis.w * other.z + self.w_axis.w * other.w,
             )
         }
     }
@@ -619,21 +593,9 @@ impl Mat4 {
 
         let inv_scale = Vec3::new(scale.x.recip(), scale.y.recip(), scale.z.recip());
         let rotation_matrix = Mat3::new(
-            Vec3::new(
-                self.x_axis.x * inv_scale.x,
-                self.x_axis.y * inv_scale.y,
-                self.x_axis.z * inv_scale.z,
-            ),
-            Vec3::new(
-                self.y_axis.x * inv_scale.x,
-                self.y_axis.y * inv_scale.y,
-                self.y_axis.z * inv_scale.z,
-            ),
-            Vec3::new(
-                self.z_axis.x * inv_scale.x,
-                self.z_axis.y * inv_scale.y,
-                self.z_axis.z * inv_scale.z,
-            ),
+            Vec3::new(self.x_axis.x * inv_scale.x, self.x_axis.y * inv_scale.y, self.x_axis.z * inv_scale.z),
+            Vec3::new(self.y_axis.x * inv_scale.x, self.y_axis.y * inv_scale.y, self.y_axis.z * inv_scale.z),
+            Vec3::new(self.z_axis.x * inv_scale.x, self.z_axis.y * inv_scale.y, self.z_axis.z * inv_scale.z),
         );
 
         let rotation = Quat::from_mat3(&rotation_matrix);

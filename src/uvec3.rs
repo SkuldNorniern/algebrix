@@ -95,11 +95,7 @@ impl UVec3 {
     /// Build from a 3-element array.
     #[inline(always)]
     pub fn from_array(a: [u32; 3]) -> Self {
-        Self {
-            x: a[0],
-            y: a[1],
-            z: a[2],
-        }
+        Self { x: a[0], y: a[1], z: a[2] }
     }
 
     /// Copy into a 3-element array [x, y, z].
@@ -139,11 +135,7 @@ impl std::ops::Add for UVec3 {
     type Output = Self;
     #[inline]
     fn add(self, other: Self) -> Self {
-        Self {
-            x: self.x + other.x,
-            y: self.y + other.y,
-            z: self.z + other.z,
-        }
+        Self { x: self.x + other.x, y: self.y + other.y, z: self.z + other.z }
     }
 }
 
@@ -151,11 +143,7 @@ impl std::ops::Sub for UVec3 {
     type Output = Self;
     #[inline]
     fn sub(self, other: Self) -> Self {
-        Self {
-            x: self.x - other.x,
-            y: self.y - other.y,
-            z: self.z - other.z,
-        }
+        Self { x: self.x - other.x, y: self.y - other.y, z: self.z - other.z }
     }
 }
 
@@ -163,11 +151,7 @@ impl std::ops::Mul<u32> for UVec3 {
     type Output = Self;
     #[inline]
     fn mul(self, scalar: u32) -> Self {
-        Self {
-            x: self.x * scalar,
-            y: self.y * scalar,
-            z: self.z * scalar,
-        }
+        Self { x: self.x * scalar, y: self.y * scalar, z: self.z * scalar }
     }
 }
 
@@ -175,11 +159,7 @@ impl std::ops::Mul for UVec3 {
     type Output = Self;
     #[inline]
     fn mul(self, other: Self) -> Self {
-        Self {
-            x: self.x * other.x,
-            y: self.y * other.y,
-            z: self.z * other.z,
-        }
+        Self { x: self.x * other.x, y: self.y * other.y, z: self.z * other.z }
     }
 }
 
@@ -187,11 +167,7 @@ impl std::ops::Div<u32> for UVec3 {
     type Output = Self;
     #[inline]
     fn div(self, scalar: u32) -> Self {
-        Self {
-            x: self.x / scalar,
-            y: self.y / scalar,
-            z: self.z / scalar,
-        }
+        Self { x: self.x / scalar, y: self.y / scalar, z: self.z / scalar }
     }
 }
 

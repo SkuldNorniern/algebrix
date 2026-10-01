@@ -52,11 +52,7 @@ impl IVec3 {
 
     #[inline(always)]
     pub fn abs(self) -> Self {
-        Self {
-            x: self.x.abs(),
-            y: self.y.abs(),
-            z: self.z.abs(),
-        }
+        Self { x: self.x.abs(), y: self.y.abs(), z: self.z.abs() }
     }
 
     /// Component-wise minimum.
@@ -110,11 +106,7 @@ impl IVec3 {
     /// Build from a 3-element array.
     #[inline(always)]
     pub fn from_array(a: [i32; 3]) -> Self {
-        Self {
-            x: a[0],
-            y: a[1],
-            z: a[2],
-        }
+        Self { x: a[0], y: a[1], z: a[2] }
     }
 
     /// Copy into a 3-element array [x, y, z].
@@ -144,11 +136,7 @@ impl std::ops::Add for IVec3 {
     type Output = Self;
     #[inline]
     fn add(self, other: Self) -> Self {
-        Self {
-            x: self.x + other.x,
-            y: self.y + other.y,
-            z: self.z + other.z,
-        }
+        Self { x: self.x + other.x, y: self.y + other.y, z: self.z + other.z }
     }
 }
 
@@ -156,11 +144,7 @@ impl std::ops::Sub for IVec3 {
     type Output = Self;
     #[inline]
     fn sub(self, other: Self) -> Self {
-        Self {
-            x: self.x - other.x,
-            y: self.y - other.y,
-            z: self.z - other.z,
-        }
+        Self { x: self.x - other.x, y: self.y - other.y, z: self.z - other.z }
     }
 }
 
@@ -168,11 +152,7 @@ impl std::ops::Mul<i32> for IVec3 {
     type Output = Self;
     #[inline]
     fn mul(self, scalar: i32) -> Self {
-        Self {
-            x: self.x * scalar,
-            y: self.y * scalar,
-            z: self.z * scalar,
-        }
+        Self { x: self.x * scalar, y: self.y * scalar, z: self.z * scalar }
     }
 }
 
@@ -180,11 +160,7 @@ impl std::ops::Mul for IVec3 {
     type Output = Self;
     #[inline]
     fn mul(self, other: Self) -> Self {
-        Self {
-            x: self.x * other.x,
-            y: self.y * other.y,
-            z: self.z * other.z,
-        }
+        Self { x: self.x * other.x, y: self.y * other.y, z: self.z * other.z }
     }
 }
 
@@ -192,11 +168,7 @@ impl std::ops::Div<i32> for IVec3 {
     type Output = Self;
     #[inline]
     fn div(self, scalar: i32) -> Self {
-        Self {
-            x: self.x / scalar,
-            y: self.y / scalar,
-            z: self.z / scalar,
-        }
+        Self { x: self.x / scalar, y: self.y / scalar, z: self.z / scalar }
     }
 }
 
@@ -204,21 +176,13 @@ impl std::ops::Neg for IVec3 {
     type Output = Self;
     #[inline]
     fn neg(self) -> Self {
-        Self {
-            x: -self.x,
-            y: -self.y,
-            z: -self.z,
-        }
+        Self { x: -self.x, y: -self.y, z: -self.z }
     }
 }
 
 impl From<Vec3> for IVec3 {
     fn from(v: Vec3) -> Self {
-        Self {
-            x: v.x as i32,
-            y: v.y as i32,
-            z: v.z as i32,
-        }
+        Self { x: v.x as i32, y: v.y as i32, z: v.z as i32 }
     }
 }
 

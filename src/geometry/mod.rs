@@ -15,12 +15,12 @@
 //! assert!(aabb.contains(Vec3::new(0.5, 0.5, 0.5)));
 //! ```
 
-pub mod aabb;
-pub mod frustum;
 pub mod plane;
 pub mod ray;
+pub mod aabb;
+pub mod frustum;
 
-pub use aabb::{Aabb2, Aabb3};
-pub use frustum::Frustum;
 pub use plane::Plane;
 pub use ray::Ray;
+pub use aabb::{Aabb2, Aabb3};
+pub use frustum::Frustum;

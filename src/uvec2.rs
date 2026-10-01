@@ -44,19 +44,13 @@ impl UVec2 {
     /// Component-wise minimum.
     #[inline(always)]
     pub fn min(self, other: Self) -> Self {
-        Self {
-            x: self.x.min(other.x),
-            y: self.y.min(other.y),
-        }
+        Self { x: self.x.min(other.x), y: self.y.min(other.y) }
     }
 
     /// Component-wise maximum.
     #[inline(always)]
     pub fn max(self, other: Self) -> Self {
-        Self {
-            x: self.x.max(other.x),
-            y: self.y.max(other.y),
-        }
+        Self { x: self.x.max(other.x), y: self.y.max(other.y) }
     }
 
     /// Smallest component.
@@ -127,10 +121,7 @@ impl std::ops::Add for UVec2 {
     type Output = Self;
     #[inline]
     fn add(self, other: Self) -> Self {
-        Self {
-            x: self.x + other.x,
-            y: self.y + other.y,
-        }
+        Self { x: self.x + other.x, y: self.y + other.y }
     }
 }
 
@@ -138,10 +129,7 @@ impl std::ops::Sub for UVec2 {
     type Output = Self;
     #[inline]
     fn sub(self, other: Self) -> Self {
-        Self {
-            x: self.x - other.x,
-            y: self.y - other.y,
-        }
+        Self { x: self.x - other.x, y: self.y - other.y }
     }
 }
 
@@ -149,10 +137,7 @@ impl std::ops::Mul<u32> for UVec2 {
     type Output = Self;
     #[inline]
     fn mul(self, scalar: u32) -> Self {
-        Self {
-            x: self.x * scalar,
-            y: self.y * scalar,
-        }
+        Self { x: self.x * scalar, y: self.y * scalar }
     }
 }
 
@@ -160,10 +145,7 @@ impl std::ops::Mul for UVec2 {
     type Output = Self;
     #[inline]
     fn mul(self, other: Self) -> Self {
-        Self {
-            x: self.x * other.x,
-            y: self.y * other.y,
-        }
+        Self { x: self.x * other.x, y: self.y * other.y }
     }
 }
 
@@ -171,10 +153,7 @@ impl std::ops::Div<u32> for UVec2 {
     type Output = Self;
     #[inline]
     fn div(self, scalar: u32) -> Self {
-        Self {
-            x: self.x / scalar,
-            y: self.y / scalar,
-        }
+        Self { x: self.x / scalar, y: self.y / scalar }
     }
 }
 

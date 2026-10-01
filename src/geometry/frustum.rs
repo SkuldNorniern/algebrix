@@ -18,8 +18,8 @@
 //! let sphere_inside = frustum.contains_sphere(Vec3::new(0.0, 0.0, -1.0), 0.5);
 //! ```
 
-use super::Plane;
 use crate::{Mat4, Vec3};
+use super::Plane;
 
 /// View frustum: six planes (left, right, bottom, top, near, far) from a projection matrix.
 ///
@@ -35,42 +35,36 @@ impl Frustum {
     #[inline]
     pub fn from_projection(projection: Mat4) -> Self {
         let m = projection.as_ref();
-
+        
         let left = Plane::from_normal_d(
             Vec3::new(m[3] + m[0], m[7] + m[4], m[11] + m[8]).normalize(),
             m[15] + m[12],
-        )
-        .normalize();
+        ).normalize();
 
         let right = Plane::from_normal_d(
             Vec3::new(m[3] - m[0], m[7] - m[4], m[11] - m[8]).normalize(),
             m[15] - m[12],
-        )
-        .normalize();
+        ).normalize();
 
         let bottom = Plane::from_normal_d(
             Vec3::new(m[3] + m[1], m[7] + m[5], m[11] + m[9]).normalize(),
             m[15] + m[13],
-        )
-        .normalize();
+        ).normalize();
 
         let top = Plane::from_normal_d(
             Vec3::new(m[3] - m[1], m[7] - m[5], m[11] - m[9]).normalize(),
             m[15] - m[13],
-        )
-        .normalize();
+        ).normalize();
 
         let near = Plane::from_normal_d(
             Vec3::new(m[3] + m[2], m[7] + m[6], m[11] + m[10]).normalize(),
             m[15] + m[14],
-        )
-        .normalize();
+        ).normalize();
 
         let far = Plane::from_normal_d(
             Vec3::new(m[3] - m[2], m[7] - m[6], m[11] - m[10]).normalize(),
             m[15] - m[14],
-        )
-        .normalize();
+        ).normalize();
 
         Self {
             planes: [left, right, bottom, top, near, far],
@@ -80,17 +74,13 @@ impl Frustum {
     /// True if the point is inside all six frustum planes.
     #[inline]
     pub fn contains_point(&self, point: Vec3) -> bool {
-        self.planes
-            .iter()
-            .all(|plane| plane.distance_to_point(point) >= 0.0)
+        self.planes.iter().all(|plane| plane.distance_to_point(point) >= 0.0)
     }
 
     /// True if the sphere (center, radius) is inside or intersects all six planes.
     #[inline]
     pub fn contains_sphere(&self, center: Vec3, radius: f32) -> bool {
-        self.planes
-            .iter()
-            .all(|plane| plane.distance_to_point(center) >= -radius)
+        self.planes.iter().all(|plane| plane.distance_to_point(center) >= -radius)
     }
 
     /// True if the AABB intersects the frustum (at least one corner in front of each plane).
@@ -115,8 +105,8 @@ impl Frustum {
 
 #[cfg(test)]
 mod tests {
-    use super::super::aabb::Aabb3;
     use super::*;
+    use super::super::aabb::Aabb3;
 
     #[test]
     fn test_frustum_creation() {

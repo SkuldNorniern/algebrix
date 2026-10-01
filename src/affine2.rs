@@ -37,10 +37,7 @@ impl Affine2 {
     /// Build from a 2x2 matrix and translation.
     #[inline(always)]
     pub const fn new(matrix: Mat2, translation: Vec2) -> Self {
-        Self {
-            matrix,
-            translation,
-        }
+        Self { matrix, translation }
     }
 
     /// Translation only (identity rotation/scale).

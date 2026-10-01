@@ -24,19 +24,9 @@ pub struct IVec4 {
 
 impl IVec4 {
     /// Zero vector (0, 0, 0, 0).
-    pub const ZERO: IVec4 = IVec4 {
-        x: 0,
-        y: 0,
-        z: 0,
-        w: 0,
-    };
+    pub const ZERO: IVec4 = IVec4 { x: 0, y: 0, z: 0, w: 0 };
     /// Vector (1, 1, 1, 1).
-    pub const ONE: IVec4 = IVec4 {
-        x: 1,
-        y: 1,
-        z: 1,
-        w: 1,
-    };
+    pub const ONE: IVec4 = IVec4 { x: 1, y: 1, z: 1, w: 1 };
 
     /// Build from x, y, z, w.
     #[inline(always)]
@@ -47,12 +37,7 @@ impl IVec4 {
     /// All components set to `v`.
     #[inline(always)]
     pub const fn splat(v: i32) -> Self {
-        Self {
-            x: v,
-            y: v,
-            z: v,
-            w: v,
-        }
+        Self { x: v, y: v, z: v, w: v }
     }
 
     /// Component-wise absolute value.
@@ -120,12 +105,7 @@ impl IVec4 {
     /// Build from a 4-element array.
     #[inline(always)]
     pub fn from_array(a: [i32; 4]) -> Self {
-        Self {
-            x: a[0],
-            y: a[1],
-            z: a[2],
-            w: a[3],
-        }
+        Self { x: a[0], y: a[1], z: a[2], w: a[3] }
     }
 
     /// Copy into a 4-element array [x, y, z, w].
@@ -210,23 +190,13 @@ impl std::ops::Neg for IVec4 {
     type Output = Self;
     #[inline]
     fn neg(self) -> Self {
-        Self {
-            x: -self.x,
-            y: -self.y,
-            z: -self.z,
-            w: -self.w,
-        }
+        Self { x: -self.x, y: -self.y, z: -self.z, w: -self.w }
     }
 }
 
 impl From<Vec4> for IVec4 {
     fn from(v: Vec4) -> Self {
-        Self {
-            x: v.x as i32,
-            y: v.y as i32,
-            z: v.z as i32,
-            w: v.w as i32,
-        }
+        Self { x: v.x as i32, y: v.y as i32, z: v.z as i32, w: v.w as i32 }
     }
 }
 

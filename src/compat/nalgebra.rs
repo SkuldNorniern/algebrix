@@ -77,8 +77,9 @@ impl From<Mat3> for Matrix3<f32> {
     #[inline]
     fn from(m: Mat3) -> Self {
         Self::from_column_slice(&[
-            m.x_axis.x, m.x_axis.y, m.x_axis.z, m.y_axis.x, m.y_axis.y, m.y_axis.z, m.z_axis.x,
-            m.z_axis.y, m.z_axis.z,
+            m.x_axis.x, m.x_axis.y, m.x_axis.z,
+            m.y_axis.x, m.y_axis.y, m.y_axis.z,
+            m.z_axis.x, m.z_axis.y, m.z_axis.z,
         ])
     }
 }
@@ -99,9 +100,10 @@ impl From<Mat4> for Matrix4<f32> {
     #[inline]
     fn from(m: Mat4) -> Self {
         Self::from_column_slice(&[
-            m.x_axis.x, m.x_axis.y, m.x_axis.z, m.x_axis.w, m.y_axis.x, m.y_axis.y, m.y_axis.z,
-            m.y_axis.w, m.z_axis.x, m.z_axis.y, m.z_axis.z, m.z_axis.w, m.w_axis.x, m.w_axis.y,
-            m.w_axis.z, m.w_axis.w,
+            m.x_axis.x, m.x_axis.y, m.x_axis.z, m.x_axis.w,
+            m.y_axis.x, m.y_axis.y, m.y_axis.z, m.y_axis.w,
+            m.z_axis.x, m.z_axis.y, m.z_axis.z, m.z_axis.w,
+            m.w_axis.x, m.w_axis.y, m.w_axis.z, m.w_axis.w,
         ])
     }
 }

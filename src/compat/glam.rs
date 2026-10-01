@@ -75,12 +75,7 @@ impl From<Mat3> for glam::Mat3 {
 impl From<glam::Mat4> for Mat4 {
     #[inline]
     fn from(g: glam::Mat4) -> Self {
-        Self::from_cols(
-            g.x_axis.into(),
-            g.y_axis.into(),
-            g.z_axis.into(),
-            g.w_axis.into(),
-        )
+        Self::from_cols(g.x_axis.into(), g.y_axis.into(), g.z_axis.into(), g.w_axis.into())
     }
 }
 
