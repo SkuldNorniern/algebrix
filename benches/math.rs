@@ -7,7 +7,7 @@
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
-use algebrix::{Mat4, Quat, Vec3, Vec4};
+use algebrix::{DAffine2, DVec2, Mat4, Quat, Vec3, Vec4};
 
 fn vec3_ops(c: &mut Criterion) {
     let a = Vec3::new(1.2, -3.4, 5.6);
@@ -317,5 +317,62 @@ fn throughput(c: &mut Criterion) {
     g.finish();
 }
 
-criterion_group!(benches, vec3_ops, vec4_ops, mat4_ops, quat_ops, throughput);
+fn dvec2_daffine2_ops(c: &mut Criterion) {
+    let a = DVec2::new(1_000_123.25, -999_876.5);
+    let b = DVec2::new(-7.8, 9.0);
+    let ga = glam::DVec2::new(1_000_123.25, -999_876.5);
+    let gb = glam::DVec2::new(-7.8, 9.0);
+    let t =
+        DAffine2::from_scale_angle_translation(DVec2::new(2.0, 3.0), 0.3, DVec2::new(5.0, -7.0));
+    let gt = glam::DAffine2::from_scale_angle_translation(
+        glam::DVec2::new(2.0, 3.0),
+        0.3,
+        glam::DVec2::new(5.0, -7.0),
+    );
+
+    let mut g = c.benchmark_group("dvec2_normalize");
+    g.bench_function("algebrix", |bench| bench.iter(|| black_box(a).normalize()));
+    g.bench_function("glam", |bench| bench.iter(|| black_box(ga).normalize()));
+    g.finish();
+
+    let mut g = c.benchmark_group("dvec2_lerp");
+    g.bench_function("algebrix", |bench| {
+        bench.iter(|| black_box(a).lerp(black_box(b), black_box(0.25)))
+    });
+    g.bench_function("glam", |bench| {
+        bench.iter(|| black_box(ga).lerp(black_box(gb), black_box(0.25)))
+    });
+    g.finish();
+
+    let mut g = c.benchmark_group("daffine2_transform_point2");
+    g.bench_function("algebrix", |bench| {
+        bench.iter(|| black_box(t).transform_point2(black_box(a)))
+    });
+    g.bench_function("glam", |bench| {
+        bench.iter(|| black_box(gt).transform_point2(black_box(ga)))
+    });
+    g.finish();
+
+    let mut g = c.benchmark_group("daffine2_mul");
+    g.bench_function("algebrix", |bench| {
+        bench.iter(|| black_box(t) * black_box(t))
+    });
+    g.bench_function("glam", |bench| bench.iter(|| black_box(gt) * black_box(gt)));
+    g.finish();
+
+    let mut g = c.benchmark_group("daffine2_inverse");
+    g.bench_function("algebrix", |bench| bench.iter(|| black_box(t).inverse()));
+    g.bench_function("glam", |bench| bench.iter(|| black_box(gt).inverse()));
+    g.finish();
+}
+
+criterion_group!(
+    benches,
+    vec3_ops,
+    vec4_ops,
+    mat4_ops,
+    quat_ops,
+    dvec2_daffine2_ops,
+    throughput
+);
 criterion_main!(benches);
