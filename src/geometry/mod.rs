@@ -18,9 +18,11 @@
 pub mod plane;
 pub mod ray;
 pub mod aabb;
+pub mod daabb2;
 pub mod frustum;
 
 pub use plane::Plane;
 pub use ray::Ray;
 pub use aabb::{Aabb2, Aabb3};
+pub use daabb2::DAabb2;
 pub use frustum::Frustum;

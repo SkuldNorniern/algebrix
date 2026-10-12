@@ -99,7 +99,7 @@ pub use affine2::Affine2;
 pub use daffine2::{Affine2Parts, DAffine2};
 pub use affine3::Affine3;
 
-pub use geometry::{Plane, Ray, Aabb2, Aabb3, Frustum};
+pub use geometry::{Plane, Ray, Aabb2, Aabb3, DAabb2, Frustum};
 
 pub use angle::{Rad, Deg, EulerRot};
 
