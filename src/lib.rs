@@ -5,7 +5,7 @@
 //!
 //! # Modules
 //!
-//! Vectors: `vec2`, `vec3`, `vec4`, `ivec2`–`ivec4`, `uvec2`–`uvec4`, `bvec`, `dvec3`.
+//! Vectors: `vec2`, `vec3`, `vec4`, `ivec2`–`ivec4`, `uvec2`–`uvec4`, `bvec`, `dvec2`, `dvec3`.
 //! Matrices: `mat2`, `mat3`, `mat4`, `dmat4`. Quaternions: `quat`, `dquat`.
 //! Transforms: `affine2`, `affine3`. Geometry: `geometry` (plane, ray, AABB, frustum).
 //! Angles: `angle` (Rad, Deg, EulerRot). Utilities: `utils`. Optional interop: `compat`.
@@ -57,6 +57,7 @@ pub mod dmat4;
 pub mod quat;
 pub mod dquat;
 
+pub mod dvec2;
 pub mod dvec3;
 
 pub mod affine2;
@@ -90,6 +91,7 @@ pub use dmat4::DMat4;
 pub use quat::Quat;
 pub use dquat::DQuat;
 
+pub use dvec2::DVec2;
 pub use dvec3::DVec3;
 
 pub use affine2::Affine2;
